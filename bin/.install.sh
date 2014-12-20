@@ -314,6 +314,7 @@ do
 					echo "";
 					read -p "  Press [Enter] key when database is updated/installed.";
 				fi
+				echo "";
 			    #restoreReports;
 			    configureStorage;
 	            configureNFS;
@@ -329,9 +330,10 @@ do
 			    configureFOGService;
 			    #sendInstallationNotice;
 			    writeUpdateFile;
-			    setupFreshClam;
+			    #setupFreshClam;
+				linkOptFogDir;
+				removeOldSSL;
 			    echo "";
-		
 			    echo "  Setup complete!";
 			    echo "";
 			    echo "  You can now login to the FOG Management Portal using";

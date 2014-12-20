@@ -2,6 +2,8 @@
 class SubMenu extends FOGBase
 {
 	private $node, $id, $name, $object, $title, $FOGSubMenu, $subMenu;
+    /** Sets the Variables to use later on. **/
+    public $FOGCore, $DB, $Hookmanager, $FOGUser, $FOGPageManager, $foglang;
 	public function __construct()
 	{
 		parent::__construct();
@@ -41,6 +43,7 @@ class SubMenu extends FOGBase
 								$this->foglang['LastUploaded'] => stripslashes($this->object->get('deployed')),
 								$this->foglang['DeployMethod'] => ($this->object->get('format') == 1 ? 'Partimage' : ($this->object->get('format') == 0 ? 'Partclone' : 'N/A')),
 								$this->foglang['ImageType'] => ($imageType && $imageType->isValid() ? $imageType->get('name') : $this->foglang['NoAvail']),
+								_('Primary Storage Group') => $this->object->getStorageGroup(),
 			);
 		}
 		else if (($this->node == 'printer' || $this->node == 'print') && $_REQUEST['id'])
@@ -90,7 +93,7 @@ class SubMenu extends FOGBase
 			$this->name = sprintf($this->foglang['SelMenu'],$this->foglang['Home']);
 			$this->object = new StorageNode($_REQUEST['id']);
 			$this->title = array($this->foglang['Storage'].' '.$this->foglang['Node'] => $this->object->get('name'),
-								 'IP' => $this->object->get('ip'),
+								 'IP' => $this->FOGCore->resolveHostname($this->object->get('ip')),
 								 $this->foglang['Path'] => $this->object->get('path')
 			);
 		}
@@ -127,7 +130,7 @@ class SubMenu extends FOGBase
 					$this->FOGSubMenu->addNotes($this->node,array((string)$title => (string)$item),$this->id,$this->name);
 			}
 		}
-		print $this->FOGSubMenu->get($this->node);
+		return $this->FOGSubMenu->get($this->node);
 	}
 	private function buildMenuLinks()
 	{
@@ -194,6 +197,7 @@ class SubMenu extends FOGBase
 			{
 				$this->subMenu[$this->node]['id'][$linkformat.'#image-gen'] = $this->foglang['General'];
 				$this->subMenu[$this->node]['id'][$linkformat.'#image-host'] = $this->foglang['Host'];
+				$this->subMenu[$this->node]['id'][$linkformat.'#image-storage'] = $this->foglang['Storage'].' '.$this->foglang['Group'];
 				$this->subMenu[$this->node]['id'][$delformat] = $this->foglang['Delete'];
 			}
 		}
@@ -216,8 +220,8 @@ class SubMenu extends FOGBase
 			$this->subMenu[$this->node]['license'] = $this->foglang['License'];
 			$this->subMenu[$this->node]['kernel-update'] = $this->foglang['KernelUpdate'];
 			$this->subMenu[$this->node]['pxemenu'] = $this->foglang['PXEBootMenu'];
-			$this->subMenu[$this->node]['new-menu'] = $this->foglang['NewMenu'];
 			$this->subMenu[$this->node]['customize-edit'] = $this->foglang['PXEConfiguration'];
+			$this->subMenu[$this->node]['new-menu'] = $this->foglang['NewMenu'];
 			$this->subMenu[$this->node]['client-updater'] = $this->foglang['ClientUpdater'];
 			$this->subMenu[$this->node]['mac-list'] = $this->foglang['MACAddrList'];
 			$this->subMenu[$this->node]['settings'] = $this->foglang['FOGSettings'];
@@ -280,6 +284,7 @@ class SubMenu extends FOGBase
 			{
 				$this->subMenu[$this->node]['id'][$linkformat.'#snap-gen'] = $this->foglang['General'];
 				$this->subMenu[$this->node]['id'][$linkformat.'#snap-host'] = $this->foglang['Host'];
+				$this->subMenu[$this->node]['id'][$linkformat.'#snap-storage'] = $this->foglang['Storage'].' '.$this->foglang['Group'];
 				$this->subMenu[$this->node]['id'][$delformat] = $this->foglang['Delete'];
 			}
 		}
@@ -328,8 +333,9 @@ class SubMenu extends FOGBase
 		if ($this->node == 'plugin')
 		{
 			$this->subMenu[$this->node]['home'] = $this->foglang['Home'];
-			$this->subMenu[$this->node]['installed'] = $this->foglang['InstalledPlugins'];
 			$this->subMenu[$this->node]['activate'] = $this->foglang['ActivatePlugins'];
+			$this->subMenu[$this->node]['install'] = $this->foglang['InstallPlugins'];
+			$this->subMenu[$this->node]['installed'] = $this->foglang['InstalledPlugins'];
 		}
 		// ServerInfo Sub/Sub menu items.
 		if ($this->node == 'hwinfo')
@@ -342,6 +348,6 @@ class SubMenu extends FOGBase
 	{
 		$this->buildMenuLinks();
 		if ($this->FOGUser && $this->FOGUser->isValid() && $this->FOGUser->isLoggedIn())
-			$this->buildMenuStruct();
+			return $this->buildMenuStruct();
 	}
 }

@@ -13,17 +13,8 @@ abstract class FOGBase
 	/** Prepares the information if you should want more info. */
 	public $info = false;
 	// Class variables
-	/** Sets the $this->FOGCore/$FOGCore calls in other classes. */
-	public $FOGCore;
-	/** Set the $this->DB/$DB calls in other files. */
-	public $DB;
-	/** Sets the $this->HookManager/$HookManager calls in other files. */
-	public $HookManager;
-	/** Sets the $this->FOGUser/$FOGUser calls in other files. */
-	public $FOGUser;
-	//Language Variable
-	/** Sets the language variable for other files. */
-	public $foglang; 
+	/** Sets the Variables to use later on. **/
+	public $FOGCore, $DB, $Hookmanager, $FOGUser, $FOGPageManager, $foglang;
 	// LEGACY
 	/** Legacy calls for $db/$conn */
 	public $db;
@@ -55,6 +46,7 @@ abstract class FOGBase
 		$this->DB = $GLOBALS['DB'];
 		$this->FOGUser = $GLOBALS['currentUser'];
 		$this->HookManager = $GLOBALS['HookManager'];
+		$this->FOGPageManager = $GLOBALS['FOGPageManager'];
 		// Language Setup
 		$this->foglang = $GLOBALS['foglang'];
 		// Default TimeZone to use for date fields
@@ -104,7 +96,7 @@ abstract class FOGBase
 	*/
 	public function info($txt, $data = array())
 	{
-		if ($this->info === true && !FOGCore::isAJAXRequest() && !preg_match('#/service/#', $_SERVER['PHP_SELF']))
+		if ((!isset($this) || (isset($this->info) && $this->info === true)) && !preg_match('#/service/#',$_SERVER['PHP_SELF']))
 		{
 			printf('<div class="debug-info">FOG INFO: %s: %s</div>%s', get_class($this), (count($data) ? vsprintf($txt, $data) : $txt), "\n");
 			flush();
@@ -179,33 +171,10 @@ abstract class FOGBase
 	*/
 	public function formatByteSize($size)
 	{
-		$kbyte = 1024;
-		$mbyte = $kbyte * $kbyte;
-		$gbyte = $mbyte * $kbyte;
-		$tbyte = $gbyte * $kbyte;
-		$pbyte = $tbyte * $kbyte;
-		$ebyte = $pbyte * $kbyte;
-		$zbyte = $ebyte * $kbyte;
-		$ybyte = $zbyte * $kbyte;
-		if ($size < $kbyte)
-			$Size = sprintf('%3.2f iB',$size);
-		if ($size >= $kbyte)
-			$Size = sprintf('%3.2f KiB',$size/$kbyte);
-		if ($size >= $mbyte)
-			$Size = sprintf('%3.2f MiB',$size/$mbyte);
-		if ($size >= $gbyte)
-			$Size = sprintf('%3.2f GiB',$size/$gbyte);
-		if ($size >= $tbyte)
-			$Size = sprintf('%3.2f TiB',$size/$tbyte);
-		if ($size >= $pbyte)
-			$Size = sprintf('%3.2f PiB',$size/$pbyte);
-		if ($size >= $ebyte)
-			$Size = sprintf('%3.2f EiB',$size/$ebyte);
-		if ($size >= $zbyte)
-			$Size = sprintf('%3.2f ZiB',$size/$zbyte);
-		if ($size >= $ybyte)
-			$Size = sprintf('%3.2f YiB',$size/$ybyte);
-		return $Size;
+		$units = array('%3.2f iB','%3.2f KiB','%3.2f MiB','%3.2f GiB','%3.2f TiB','%3.2f PiB','%3.2f EiB','%3.2f ZiB','%3.2f YiB');
+		for($i = 0; $size >= 1024 && $i < count($units) - 1; $i++)
+			$size /= 1024;
+		return sprintf($units[$i],round($size,2));
 	}
 	/*
 	* Inserts a new key/value before the key in the array.
@@ -287,10 +256,16 @@ abstract class FOGBase
 	}
 	public function aesencrypt($data,$key,$enctype = MCRYPT_RIJNDAEL_128,$mode = MCRYPT_MODE_CBC)
 	{
+
+		// Below is if we ever figure out how to use asymmetric keys
+		/*if (!$pub_key = openssl_pkey_get_public($data))
+			throw new Exception('#!ihc');
+		$a_key = openssl_pkey_get_details($pub_key);*/
 		$iv_size = mcrypt_get_iv_size($enctype,$mode);
 		$iv = $this->randomString($iv_size);
 		$cipher = mcrypt_encrypt($enctype,$key,$data,$mode,$iv);
 		return $iv.base64_encode($cipher);
+		// return $a_key['bits'].'|'.$iv.base64_encode($cipher);
 	}
 	public function aesdecrypt($encdata,$key,$enctype = MCRYPT_RIJNDAEL_128,$mode = MCRYPT_MODE_CBC)
 	{
@@ -347,15 +322,15 @@ abstract class FOGBase
 		formats based on current date to date sent.  Otherwise
 		returns the information back based on the format requested.
 	*/
-	public function formatTime($time, $format = '', $utc = false)
+	public function formatTime($time, $format = false, $utc = false)
 	{
 		if (!$time instanceof DateTime)
 			$time = $this->nice_date($time,$utc);
 		// Forced format
 		if ($format)
-			$RetDate = $time->format($format);
-
+			return $time->format($format);
 		$weeks = array(
+			'oneday' => array(1,-1),
 			'curweek' => array(2,3,4,5,6,-2,-3,-4,-5,-6),
 			'1week' => array(7,8,9,10,11,12,13,-7,-8,-9,-10,-11,-12,-13),
 			'2weeks' => array(14,15,16,17,18,19,20,-14,-15,-16,-17,-18,-19,-20),
@@ -363,35 +338,46 @@ abstract class FOGBase
 			'4weeks' => array(28,29,30,31,-28,-29,-30,-31),
 		);
 		$CurrTime = $this->nice_date('now',$utc);
-		$TimeVal = $CurrTime->diff($time);
-		if (!($TimeVal->y > 1 || $TimeVal->m >= 1))
+		if ($time < $CurrTime)
+			$TimeVal = $CurrTime->diff($time);
+		if ($time > $CurrTime)
+			$TimeVal = $time->diff($CurrTime);
+		$Datediff = $TimeVal->d;
+		$NoAfter = false;
+		if ($TimeVal->y)
+			$RetDate = $TimeVal->y.' year'.($TimeVal->y != 1 ? 's' : '');
+		else if ($TimeVal->m)
+			$RetDate = $TimeVal->m.' month'.($TimeVal->m != 1 ? 's' : '');
+		else if ($time->format('Y-m-d') == $CurrTime->format('Y-m-d') || !$Datediff)
 		{
-			if ($time->format('Y-m-d') == $CurrTime->format('Y-m-d'))
-				$RetDate = ($time > $CurrTime ? _('Runs') : _('Ran')).' '._('today, at ').$time->format('g:ia');
-			else if (in_array(($time->format('d') - $CurrTime->format('d')),array(1,-1)))
-				$RetDate = ($time > $CurrTime ? _('Tomorrow at ') : _('Yesterday at ')).$time->format('g:ia');
-			else if (in_array(($time->format('d') - $CurrTime->format('d')),$weeks['curweek']))
-				$RetDate = ($time > $CurrTime ? _('This') : _('Last')).' '.$time->format('l')._(' at ').$time->format('g:ia');
-			else if (in_array(($time->format('d') - $CurrTime->format('d')),$weeks['1week']))
-				$RetDate = ($time > $CurrTime ? _('Next week') : _('Last week')).' '.$time->format('l')._(' at ').$time->format('g:ia');
-			else if (in_array(($time->format('d') - $CurrTime->format('d')),$weeks['2weeks']))
-				$RetDate = ($time > $CurrTime ? _('2 weeks from now') : _('2 weeks ago'));
-			else if (in_array(($time->format('d') - $CurrTime->format('d')),$weeks['3weeks']))
-				$RetDate = ($time > $CurrTime ? _('3 weeks from now') : _('3 weeks ago'));
-			else if (in_array(($time->format('d') - $CurrTime->format('d')),$weeks['4weeks']))
-				$RetDate = ($time > $CurrTime ? _('4 weeks from now') : _('4 weeks ago'));
+			$RetDate = ($time > $CurrTime ? _('Runs') : _('Ran')).' '._('today, at ').$time->format('g:ia');
+			$NoAfter = true;
 		}
-		else
+		else if (in_array($Datediff,$weeks['oneday']))
 		{
-			if ($TimeVal->y)
-				$RetDate = $TimeVal->y.' year'.($TimeVal->y != 1 ? 's' : '');
-			else if ($TimeVal->m)
-				$RetDate = $TimeVal->m.' month'.($TimeVal->m != 1 ? 's' : '');
-			if ($time < $CurrTime)
-				$RetDate .= ' ago';
-			if ($time > $CurrTime)
-				$RetDate .= ' from now';
+			$RetDate = ($time > $CurrTime ? _('Tomorrow at ') : _('Yesterday at ')).$time->format('g:ia');
+			$NoAfter = true;
 		}
+		else if (in_array($Datediff,$weeks['curweek']))
+		{
+			$RetDate = ($time > $CurrTime ? _('This') : _('Last')).' '.$time->format('l')._(' at ').$time->format('g:ia');
+			$NoAfter = true;
+		}
+		else if (in_array($Datediff,$weeks['1week']))
+		{
+			$RetDate = ($time > $CurrTime ? _('Next week') : _('Last week')).' '.$time->format('l')._(' at ').$time->format('g:ia');
+			$NoAfter = true;
+		}
+		else if (in_array($Datediff,$weeks['2weeks']))
+			$RetDate = ($time > $CurrTime ? _('2 weeks from now') : _('2 weeks ago'));
+		else if (in_array($Datediff,$weeks['3weeks']))
+			$RetDate = ($time > $CurrTime ? _('3 weeks from now') : _('3 weeks ago'));
+		else if (in_array($Datediff,$weeks['4weeks']))
+			$RetDate = ($time > $CurrTime ? _('4 weeks from now') : _('4 weeks ago'));
+		if ($time < $CurrTime && !$NoAfter)
+			$RetDate .= ' ago';
+		if ($time > $CurrTime && !$NoAfter)
+			$RetDate .= ' from now';
 		return $RetDate;
 	}
 	/** resetRequest()
@@ -429,6 +415,78 @@ abstract class FOGBase
 		$input = array_filter($input);
 		$input = array_values($input);
 		return $input;
+	}
+	/** byteconvert($kilobytes)
+	* @param $kilobytes
+	* @return $kilobytes
+	**/
+	public function byteconvert($kilobytes)
+	{
+		return (($kilobytes / 8) * 1024);
+	}
+	/** certEncrypt($data)
+	* @param $data the data to encrypt
+	* @return $encrypt returns the encrypted data
+	**/
+	public function certEncrypt($data,$Host)
+	{
+		// Get the public key of the recipient
+		if (!$Host || !$Host->isValid())
+			throw new Exception('#!ih');
+		if (!$Host->get('pub_key'))
+			throw new Exception('#!ihc');
+		return $this->aesencrypt($data,$Host->get('pub_key'));
+		// Below is if we ever figure out an asymmetric system.
+		if (!$pub_key = openssl_pkey_get_public($Host->get('pub_key')))
+			throw new Exception('#!ihc');
+		$a_key = openssl_pkey_get_details($pub_key);
+		// Encrypt the data in small chunks and then combine and send it.
+		$chunkSize = ceil($a_key['bits'] / 8) - 11;
+		$output = '';
+		while ($data)
+		{
+			$chunk = substr($data,0,$chunkSize);
+			$data = substr($data,$chunkSize);
+			$encrypt = '';
+			if (!openssl_public_encrypt($chunk,$encrypt,$pub_key))
+				throw new Exception('Failed to encrypt data');
+			$output .= $encrypt;
+		}
+		openssl_free_key($pub_key);
+		return base64_encode($output);
+	}
+	/** certDecrypt($data)
+	* @param $data the data to decrypt
+	* @return $output the decrypted data
+	**/
+	public function certDecrypt($data,$padding = true)
+	{
+		if ($padding)
+			$padding = OPENSSL_PKCS1_PADDING;
+		else
+			$padding = OPENSSL_NO_PADDING;
+		if (function_exists('hex2bin'))
+			$data = hex2bin($data);
+		else
+			$data = $this->FOGCore->hex2bin($data);
+		$path = '/var/www/fogsslkeypair/';
+		if (!$priv_key = openssl_pkey_get_private(file_get_contents($path.'srvprivate.key')))
+			throw new Exception('Private Key Failed');
+		$a_key = openssl_pkey_get_details($priv_key);
+		// Decrypt the data in the small chunks
+		$chunkSize = ceil($a_key['bits'] / 8);
+		$output = '';
+		while ($data)
+		{
+			$chunk = substr($data, 0, $chunkSize);
+			$data = substr($data,$chunkSize);
+			$decrypt = '';
+			if (!openssl_private_decrypt($chunk,$decrypt,$priv_key,$padding))
+				throw new Exception('Failed to decrypt data');
+			$output .= $decrypt;
+		}
+		openssl_free_key($priv_key);
+		return $output;
 	}
 }
 /* Local Variables: */

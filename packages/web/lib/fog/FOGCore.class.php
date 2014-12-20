@@ -55,14 +55,14 @@ class FOGCore extends FOGBase
 	*/
 	public function getMessages()
 	{
-		print "\n\t<!-- FOG Variables -->";
-		
+		print "<!-- FOG Variables -->\n";
+		$cnt = 0;	
 		foreach ((array)$_SESSION['FOG_MESSAGES'] AS $message)
 		{
 			// Hook
 			$GLOBALS['HookManager']->processEvent('MessageBox', array('data' => &$message));
 			// Message Box
-			printf('<div class="fog-message-box">%s</div>%s', $message, "\n");
+			print ($cnt++ > 0 ? "\t\t" : '').'<div class="fog-message-box">'.$message."</div>\n";
 		}
 		unset($_SESSION['FOG_MESSAGES']);
 	}
@@ -130,24 +130,13 @@ class FOGCore extends FOGBase
 	/** addUpdateMACLookupTable($macprefix,$strMan)
 		Updates/add's MAC Manufacturers
 	*/
-	public function addUpdateMACLookupTable($macprefix,$strMan)
+	public function addUpdateMACLookupTable($macprefix)
 	{
-		$OUI = current($this->getClass('OUIManager')->find(array('prefix' => $macprefix)));
-		if ($OUI)
-		{
-			$OUI->set('prefix',$macprefix)
-				->set('name',$strMan);
-			return $OUI->save();
-		}
-		else
-		{
-			$OUI = new OUI(array(
-				'prefix' => $macprefix,
-				'name' => $strMan,
-			));
-			return $OUI->save();
-		}
-		return false;
+		$this->clearMACLookupTable();
+		foreach($macprefix AS $macpre => $maker)
+			$macArray[] = "('".$this->DB->sanitize($macpre)."','".$this->DB->sanitize($maker)."')";
+		$sql = "INSERT INTO `oui` (`ouiMACPrefix`,`ouiMan`) VALUES ".implode((array)$macArray,',');
+		return $this->DB->query($sql);
 	}
 	
 	/** clearMACLookupTable()
@@ -179,7 +168,7 @@ class FOGCore extends FOGBase
 		if ($this->DB && $this->getSetting('FOG_PROXY_IP'))
 		{
 			foreach($this->getClass('StorageNodeManager')->find() AS $StorageNode)
-				$IPs[] = $StorageNode->get('ip');
+				$IPs[] = $this->resolveHostname($StorageNode->get('ip'));
 			$IPs = array_filter(array_unique($IPs));
 			if (!preg_match('#('.implode('|',$IPs).')#i',$URL))
 				$Proxy = $this->getSetting('FOG_PROXY_IP') . ':' . $this->getSetting('FOG_PROXY_PORT');
@@ -227,7 +216,11 @@ class FOGCore extends FOGBase
 	*/
 	public function resolveHostname($host)
 	{
-		return ($this->getSetting('FOG_USE_SLOPPY_NAME_LOOKUPS') ? gethostbyname($host) : $host);
+		if (filter_var($host,FILTER_VALIDATE_IP))
+			$ip = $host;
+		else
+			$ip = gethostbyname($host);
+		return $ip;
 	}
 	
 	/** makeTempFilePath()
@@ -350,8 +343,10 @@ class FOGCore extends FOGBase
 			{
 				if (($bIp = ip2long($IP)) !== false)
 					$output[] = $IP;
+					$output[] = gethostbyaddr($IP);
 			}
 		}
+		$output = array_values(array_unique((array)$output));
 		return $output;
 	}
 	/** getBanner()
@@ -413,17 +408,17 @@ class FOGCore extends FOGBase
 	public function getHWInfo()
 	{
 		$data['general'] = '@@general';
-		$data['kernel'] = trim(shell_exec('uname -r').substr("\n",0,-2));
-		$data['hostname'] = trim(shell_exec('hostname'));
+		$data['kernel'] = trim(php_uname('r'));
+		$data['hostname'] = trim(php_uname('n'));
 		$data['uptimeload'] = trim(shell_exec('uptime'));
 		$data['cputype'] = trim(shell_exec("cat /proc/cpuinfo | head -n2 | tail -n1 | cut -f2 -d: | sed 's| ||'"));
 		$data['cpucount'] = trim(shell_exec("grep '^processor' /proc/cpuinfo | tail -n 1 | awk '{print \$3+1}'"));
 		$data['cpumodel'] = trim(shell_exec("cat /proc/cpuinfo | head -n5 | tail -n1 | cut -f2 -d: | sed 's| ||'"));
 		$data['cpuspeed'] = trim(shell_exec("cat /proc/cpuinfo | head -n8 | tail -n1 | cut -f2 -d: | sed 's| ||'"));
 		$data['cpucache'] = trim(shell_exec("cat /proc/cpuinfo | head -n9 | tail -n1 | cut -f2 -d: | sed 's| ||'"));
-		$data['totmem'] = $this->formatByteSize(trim(shell_exec("free -m | head -n2 | tail -n1 | awk '{ print \$2 }'"))*1024*1024);
-		$data['usedmem'] = $this->formatByteSize(trim(shell_exec("free -m | head -n3 | tail -n1 | awk '{ print \$3 }'"))*1024*1024);
-		$data['freemem'] = $this->formatByteSize(trim(shell_exec("free -m | head -n3 | tail -n1 | awk '{ print \$4 }'"))*1024*1024);
+		$data['totmem'] = $this->formatByteSize(trim(shell_exec("free -b | head -n2 | tail -n1 | awk '{ print \$2 }'")));
+		$data['usedmem'] = $this->formatByteSize(trim(shell_exec("free -b | head -n2 | tail -n1 | awk '{ print \$3 }'")));
+		$data['freemem'] = $this->formatByteSize(trim(shell_exec("free -b | head -n2 | tail -n1 | awk '{ print \$4 }'")));
 		$data['filesys'] = '@@fs';
 		$t = shell_exec('df | grep -vE "^Filesystem|shm"');
 		$l = explode("\n",$t);
@@ -500,6 +495,43 @@ class FOGCore extends FOGBase
 		catch (Exception $e)
 		{
 			die($e->getMessage());
+		}
+	}
+	/**
+	* createKeyPair($keybits, $keytype = OPENSSL_KEYTYPE_RSA)
+	* @param $keybits the bitsize of the key to be generated.
+	* @param $keytype the type of key to use.
+	* @return void
+	**/
+	public function createKeyPair($keybits = 2048,$keytype = OPENSSL_KEYTYPE_RSA)
+	{
+		$pub_path = BASEPATH.'/management/other/ssl/';
+		$priv_path = '/var/www/fogsslkeypair/';
+		if (!is_dir($priv_path))
+			exec('mkdir '.$priv_path);
+		if (!is_dir($pub_path))
+			exec('mkdir '.$pub_path);
+		if (!file_exists($priv_path.'srvprivate.key'))
+		{
+			// Key settings as needed
+			$privateKey = openssl_pkey_new(array(
+				'private_key_bits' => $keybits,
+				'private_key_type' => $keytype,
+			));
+			// Save the private key to a file.
+			openssl_pkey_export_to_file($privateKey,$priv_path.'srvprivate.key');
+			// Generate the public key for the private key.
+			$pub_key = openssl_pkey_get_details($privateKey);
+			// Save the public key in location
+			file_put_contents($pub_path.'srvpublic.key',$pub_key['key']);
+			// Free the private key
+			openssl_free_key($privateKey);
+		}
+		if (!file_exists($pub_path.'srvpublic.key'))
+		{
+			$pub_key = openssl_pkey_get_private(file_get_contents($priv_path.'srvprivate.key'));
+			$pub_key = openssl_pkey_get_details($pub_key);
+			file_put_contents($pub_path.'srvpublic.key',$pub_key['key']);
 		}
 	}
 }

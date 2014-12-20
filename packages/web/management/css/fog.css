@@ -2,8 +2,8 @@
  * FOG CSS
  *	Author:		Blackout
  *	Created:	10:58 AM 18/02/2011
- *	Revision:	$Revision: 2228 $
- *	Last Update:	$LastChangedDate: 2014-08-26 19:22:37 -0400 (Tue, 26 Aug 2014) $
+ *	Revision:	$Revision$
+ *	Last Update:	$LastChangedDate$
  ***/
 
 @font-face {
@@ -349,3 +349,18 @@ pre { white-space: pre-wrap; }
 .task-action a { display: block; }
 
 tbody td.small { font-size: 10px; }
+.ui-dialog-titlebar-close {
+	visibility: hidden;
+}
+/* CSS FOR TIMEPICKER */
+.ui-timepicker-div .ui-widget-header { margin-bottom: 8px; }
+.ui-timepicker-div dl { text-align: left; }
+.ui-timepicker-div dl dt { float: left; clear:left; padding: 0 0 0 5px; }
+.ui-timepicker-div dl dd { margin: 0 10px 10px 45%; }
+.ui-timepicker-div td { font-size: 90%; }
+.ui-tpicker-grid-label { background: none; border: none; margin: 0; padding: 0; }
+
+.ui-timepicker-rtl{ direction: rtl; }
+.ui-timepicker-rtl dl { text-align: right; padding: 0 5px 0 0; }
+.ui-timepicker-rtl dl dt{ float: right; clear: right; }
+.ui-timepicker-rtl dl dd { margin: 0 45% 10px 10px; }

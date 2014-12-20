@@ -44,7 +44,7 @@ class FOGConfigurationPage extends FOGPage
 		// Set title
 		$this->title = _('FOG Version Information');
 		print "\n\t\t\t<p>"._('Version: ').FOG_VERSION.'</p>';
-		print "\n\t\t\t".'<p><div class="sub">'.$this->FOGCore->FetchURL("http://freeghost.sourceforge.net/version/index.php?version=".FOG_VERSION).'</div></p>';
+		print "\n\t\t\t".'<p><div class="sub">'.$this->FOGCore->FetchURL("http://fogproject.org/version/index.php?version=".FOG_VERSION).'</div></p>';
 	}
 	// Licence
 	/** license()
@@ -78,7 +78,7 @@ class FOGConfigurationPage extends FOGPage
 	public function kernel_update()
 	{
 		$this->kernelselForm('pk');
-		print $this->FOGCore->FetchURL('http://freeghost.sourceforge.net/kernelupdates/index.php?version='.FOG_VERSION);
+		print $this->FOGCore->FetchURL('http://freeghost.sourceforge.net/kernelupdates/kernelupdate.php?version='.FOG_VERSION);
 	}
 	/** kernelselForm($type)
 		Gives the user the option to select between:
@@ -94,6 +94,7 @@ class FOGConfigurationPage extends FOGPage
 		print "\n\t\t\t".'<form method="post" action="'.$this->formAction.'">';
 		print "\n\t\t\t".'<select name="kernelsel" onchange="this.form.submit()">';
 		print "\n\t\t\t".'<option value="pk"'.($type == 'pk' ? ' selected="selected"' : '').'>'._('Published Kernels').'</option>';
+		print "\n\t\t\t".'<option value="ok"'.($type == 'ok' ? ' selected="selected"' : '').'>'._('Old Published Kernels').'</option>';
 		print "\n\t\t\t".'<option value="uk"'.($type == 'uk' ? ' selected="selected"' : '').'>'._('Unofficial Kernels').'</option>';
 		print "\n\t\t\t</select>";
 		print "\n\t\t\t</form>";
@@ -112,15 +113,19 @@ class FOGConfigurationPage extends FOGPage
 			{
 				case 'pk':
 					$this->kernelselForm('pk');
-					print $this->FOGCore->FetchURL("http://freeghost.sourceforge.net/kernelupdates/index.php?version=" . FOG_VERSION);
+					print $this->FOGCore->FetchURL("http://freeghost.sourceforge.net/kernelupdates/kernelupdate.php?version=" . FOG_VERSION);
 					break;
 				case 'uk':
 					$this->kernelselForm('uk');
 					print $this->FOGCore->FetchURL("http://mastacontrola.com/fogboot/kernel/index.php?version=" . FOG_VERSION);
 					break;
+				case 'ok':
+					$this->kernelselForm('ok');
+					print $this->FOGCore->FetchURL("http://freeghost.sourceforge.net/kernelupdates/index.php?version=".FOG_VERSION);
+					break;
 				default:
 					$this->kernelselForm('pk');
-					print $this->FOGCore->FetchURL("http://freeghost.sourceforge.net/kernelupdates/index.php?version=" . FOG_VERSION);
+					print $this->FOGCore->FetchURL("http://freeghost.sourceforge.net/kernelupdates/kernelupdate.php?version=" . FOG_VERSION);
 					break;
 			}
 		}
@@ -140,7 +145,7 @@ class FOGConfigurationPage extends FOGPage
 		else
 		{
 			print "\n\t\t\t".'<form method="post" action="?node='.$_REQUEST['node'].'&sub=kernel&install=1&file='.$_REQUEST['file'].'">';
-			print "\n\t\t\t<p>"._('New Kernel name:').'<input class="smaller" type="text" name="dstName" value="bzImage" /></p>';
+			print "\n\t\t\t<p>"._('New Kernel name:').'<input class="smaller" type="text" name="dstName" value="'.($_REQUEST['arch'] == 64 || !$_REQUEST['arch'] ? 'bzImage' : 'bzImage32').'" /></p>';
 			print "\n\t\t\t".'<p><input class="smaller" type="submit" value="Next" /></p>';
 			print "\n\t\t\t</form>";
 		}
@@ -176,6 +181,7 @@ class FOGConfigurationPage extends FOGPage
 		$fields = array(
 			_('No Menu') => '<input type="checkbox" name="nomenu" ${noMenu} value="1" /><span class="icon icon-help hand" title="Option sets if there will even be the presence of a menu to the client systems.  If there is not a task set, it boots to the first device, if there is a task, it performs that task."></span>',
 			_('Hide Menu') => '<input type="checkbox" name="hidemenu" ${checked} value="1" /><span class="icon icon-help hand" title="Option below sets the key sequence.  If none is specified, ESC is defaulted. Login with the FOG credentials and you will see the menu.  Otherwise it will just boot like normal."></span>',
+			_('Hide Menu Timeout') => '<input type="text" name="hidetimeout" value="${hidetimeout}" /><span class="icon icon-help hand" title="Option specifies the timeout value for the hidden menu system."></span>',
 			_('Advanced Menu Login') => '<input type="checkbox" name="advmenulogin" ${advmenulogincheck} value="1" /><span class="icon icon-help hand" title="Option below enforces a Login system for the Advanced menu parameters.  If off no login will appear, if on, it will only allow login to the advanced system.."></span>',
 			_('Boot Key Sequence') => '${boot_keys}',
 			_('Menu Timeout (in seconds)').':*' => '<input type="text" name="timeout" value="${timeout}" id="timeout" />',
@@ -196,6 +202,7 @@ class FOGConfigurationPage extends FOGPage
 				'advmenulogin' => $this->FOGCore->getSetting('FOG_ADVANCED_MENU_LOGIN'),
 				'advmenulogincheck' => $this->FOGCore->getSetting('FOG_ADVANCED_MENU_LOGIN') ? 'checked="checked"' : '',
 				'noMenu' => ($this->FOGCore->getSetting('FOG_NO_MENU') ? 'checked="checked"' : ''),
+				'hidetimeout' => $this->FOGCore->getSetting('FOG_PXE_HIDDENMENU_TIMEOUT'),
 			);
 		}
 		// Hook
@@ -213,12 +220,18 @@ class FOGConfigurationPage extends FOGPage
 		try
 		{
 			$timeout = trim($_REQUEST['timeout']);
-			$timeout = (!empty($timeout) && is_numeric($timeout) && $timeout >= 0 ? true : false);
+			$timeout = (is_numeric($timeout) || intval($timeout) >= 0 ? true : false);
 			if (!$timeout)
 				throw new Exception(_("Invalid Timeout Value."));
 			else
 				$timeout = trim($_REQUEST['timeout']);
-			if ($this->FOGCore->setSetting('FOG_PXE_MENU_HIDDEN',$_REQUEST['hidemenu']) && $this->FOGCore->setSetting('FOG_PXE_MENU_TIMEOUT',$timeout) && $this->FOGCore->setSetting('FOG_PXE_ADVANCED',$_REQUEST['adv']) && $this->FOGCore->setSetting('FOG_KEY_SEQUENCE',$_REQUEST['keysequence']) && $this->FOGCore->setSetting('FOG_NO_MENU',$_REQUEST['nomenu']) && $this->FOGCore->setSetting('FOG_BOOT_EXIT_TYPE',$_REQUEST['bootTypeExit']) && $this->FOGCore->setSetting('FOG_ADVANCED_MENU_LOGIN',$_REQUEST['advmenulogin']))
+			$hidetimeout = trim($_REQUEST['hidetimeout']);
+			$hidetimeout = (is_numeric($hidetimeout) || intval($hidetimeout) >= 0 ? true : false);
+			if (!$hidetimeout)
+				throw new Exception(_("Invalid Timeout Value."));
+			else
+				$hidetimeout = trim($_REQUEST['hidetimeout']);
+			if ($this->FOGCore->setSetting('FOG_PXE_MENU_HIDDEN',$_REQUEST['hidemenu']) && $this->FOGCore->setSetting('FOG_PXE_MENU_TIMEOUT',$timeout) && $this->FOGCore->setSetting('FOG_PXE_ADVANCED',$_REQUEST['adv']) && $this->FOGCore->setSetting('FOG_KEY_SEQUENCE',$_REQUEST['keysequence']) && $this->FOGCore->setSetting('FOG_NO_MENU',$_REQUEST['nomenu']) && $this->FOGCore->setSetting('FOG_BOOT_EXIT_TYPE',$_REQUEST['bootTypeExit']) && $this->FOGCore->setSetting('FOG_ADVANCED_MENU_LOGIN',$_REQUEST['advmenulogin']) && $this->FOGCore->setSetting('FOG_PXE_HIDDENMENU_TIMEOUT',$hidetimeout))
 				throw new Exception("PXE Menu has been updated!");
 			else
 				throw new Exception("PXE Menu update failed!");
@@ -252,7 +265,8 @@ class FOGConfigurationPage extends FOGPage
 				_('Boot Options:') => '<input type="text" name="menu_options" id="menu_options" value="${menu_options}" ${disabled}/>',
 				_('Default Item:') => '<input type="checkbox" name="menu_default" value="1" ${menu_default}/>',
 				_('Menu Show with:') => '${menu_regmenu}',
-				'<input type="hidden" name="menu_id" value="${menu_id}" />' => '<input type="submit" value="'.$this->foglang['Submit'].'" />',
+				'<input type="hidden" name="menu_id" value="${menu_id}" />' => '<input type="submit" name="saveform" value="'.$this->foglang['Submit'].'" />',
+				!$menuid ? '<input type="hidden" name="rmid" value="${menu_id}" />' : '' => !$menuid ? '<input type="submit" name="delform" value="'.$this->foglang['Delete'].' ${menu_item}" />' : '',
 			);
 			foreach($fields AS $field => $input)
 			{
@@ -266,7 +280,7 @@ class FOGConfigurationPage extends FOGPage
 					'menu_default' => ($Menu->get('default') ? 'checked="checked"' : ''),
 					'menu_regmenu' => $this->getClass('PXEMenuOptionsManager')->regSelect($Menu->get('regMenu')),
 					'menu_options' => $Menu->get('args'),
-					'disabled' => $menuid ? 'disabled="disabled"' : '',
+					'disabled' => $menuid ? 'readonly="true"' : '',
 				);
 			}
 			// Hook
@@ -274,12 +288,6 @@ class FOGConfigurationPage extends FOGPage
 			// Output
 			$this->render();
 			print "</form>";
-			if (!$menuid)
-			{
-				print "\n\t\t\t".'<form method="post" action="'.$this->formAction.'">';
-				print "\n\t\t\t".'<input type="hidden" name="rmid" value="'.$Menu->get('id').'" /><input type="submit" value="'.$this->foglang['Delete'].' '.$Menu->get('name').' Menu Entry" />';
-				print "\n\t\t\t".'</form>';
-			}
 			print "\n\t\t\t".'</div>';
 			// Reset for use again.
 			unset($this->data);
@@ -288,7 +296,7 @@ class FOGConfigurationPage extends FOGPage
 	}
 	public function customize_edit_post()
 	{
-		if ($_REQUEST['menu_id'])
+		if (isset($_REQUEST['saveform']) && $_REQUEST['menu_id'])
 		{
 			$Menu = new PXEMenuOptions($_REQUEST['menu_id']);
 			$Menu->set('name',$_REQUEST['menu_item'])
@@ -308,7 +316,7 @@ class FOGConfigurationPage extends FOGPage
 			if ($countDefault == 0 || $countDefault > 1)
 				$this->getClass('PXEMenuOptions',1)->set('default',1)->save();
 		}
-		if ($_REQUEST['rmid'])
+		if (isset($_REQUEST['delform']) && $_REQUEST['rmid'])
 		{
 			$Menu = new PXEMenuOptions($_REQUEST['rmid']);
 			$menuname = $Menu->get('name');
@@ -375,7 +383,7 @@ class FOGConfigurationPage extends FOGPage
 				'args' => $_REQUEST['menu_options'],
 			));
 			if ($Menu->save())
-				$this->FOGCore->setMessage($Menu->get('name').' '._('successfully added, you may now add another'));
+				$this->FOGCore->setMessage($Menu->get('name').' '._('successfully added, editing now'));
 			// Set all other menus that are default to non-default value.
 			if ($_REQUEST['menu_default'])
 			{
@@ -388,7 +396,7 @@ class FOGConfigurationPage extends FOGPage
 		{
 			$this->FOGCore->setMessage($e->getMessage());
 		}
-		$this->FOGCore->redirect($this->formAction);
+		$this->FOGCore->redirect("?node={$this->node}&sub=customize-edit#{$Menu->get(name)}");
 	}
 	// Client Updater
 	/** client_updater()
@@ -411,7 +419,7 @@ class FOGConfigurationPage extends FOGPage
 			'<form method="post" action="${action}"><input type="hidden" name="name" value="FOG_SERVICE_CLIENTUPDATER_ENABLED" />${name}',
 			'${module}',
 			'${type}',
-			'<input type="checkbox" onclick="this.form.submit()" name="delcu" class="delid" id="delcuid${client_id}" value="${client_id}" /><label for="delcuid${client_id}">Delete</label></form>',
+			'<input type="checkbox" onclick="this.form.submit()" name="delcu" class="delid" id="delcuid${client_id}" value="${client_id}" /><label for="delcuid${client_id}" class="icon icon-hand" title="'._('Delete').'">&nbsp;</label></form>',
 		);
 		$this->attributes = array(
 			array(),
@@ -530,13 +538,13 @@ class FOGConfigurationPage extends FOGPage
 		// Set title
 		$this->title = _("MAC Address Manufacturer Listing");
         // Allow the updating and deleting of the mac-lists.
-        $this->mac_list_post();
 		print "\n\t\t\t".'<div class="hostgroup">';
 		print "\n\t\t\t\t"._('This section allows you to import known mac address makers into the FOG database for easier identification.');
 		print "\n\t\t\t</div>";
 		print "\n\t\t\t<div>";
 		print "\n\t\t\t\t<p>"._('Current Records: ').$this->FOGCore->getMACLookupCount().'</p>';
-		print "\n\t\t\t\t<p>".'<input type="button" id="delete" value="'._('Delete Current Records').'" onclick="clearMacs()" /><input style="margin-left: 20px" type="button" id="update" value="'._('Update Current Listing').'" onclick="updateMacs()" /></p>';
+		print "\n\t\t\t\t<p>".'<div id="delete"></div><div id="update"></div><input class="macButtons" type="button" title="'._('Delete MACs').'" value="'._('Delete Current Records').'" onclick="clearMacs()" /><input class="macButtons" style="margin-left: 20px" type="button" title="'._('Update MACs').'" value="'._('Update Current Listing').'" onclick="updateMacs()" /></p>';
+		
 		print "\n\t\t\t\t<p>"._('MAC address listing source: ').'<a href="http://standards.ieee.org/regauth/oui/oui.txt">http://standards.ieee.org/regauth/oui/oui.txt</a></p>';
 		print "\n\t\t\t</div>";
 	}
@@ -546,12 +554,12 @@ class FOGConfigurationPage extends FOGPage
 	*/
 	public function mac_list_post()
 	{
-		if ( $_REQUEST["update"] == "1" )
+		if ($_REQUEST['update'])
 		{
-			$f = "./other/oui.txt";
-			exec('rm -rf '.BASEPATH.'/management/other/oui.txt');
-			exec('wget -P '.BASEPATH.'/management/other/ http://standards.ieee.org/develop/regauth/oui/oui.txt');
-			if ( file_exists($f) )
+			$f = "/tmp/oui.txt";
+			exec("rm -rf $f");
+			exec("wget -O $f  http://standards.ieee.org/develop/regauth/oui/oui.txt");
+			if (file_exists($f))
 			{
 				$handle = fopen($f, "r");
 				$start = 18;
@@ -559,33 +567,30 @@ class FOGConfigurationPage extends FOGPage
 				while (!feof($handle)) 
 				{
 					$line = trim(fgets($handle));
-					if ( preg_match( "#^([0-9a-fA-F][0-9a-fA-F][:-]){2}([0-9a-fA-F][0-9a-fA-F]).*$#", $line ) )
+					if (preg_match("#^([0-9a-fA-F][0-9a-fA-F][:-]){2}([0-9a-fA-F][0-9a-fA-F]).*$#", $line ) )
 					{
-						$macprefix = substr( $line, 0, 8 );					
-						$maker = substr( $line, $start, strlen( $line ) - $start );
-						try
+						$macprefix = substr($line,0,8);
+						$maker = substr($line,$start,strlen($line)-$start);
+						if (strlen($macprefix) == 8 && strlen($maker) > 0)
 						{
-							if ( strlen(trim( $macprefix ) ) == 8 && strlen($maker) > 0 )
-							{
-								if ( $this->FOGCore->addUpdateMACLookupTable( $macprefix, $maker ) )
-									$imported++;
-							}
+							$mac = trim($macprefix);
+							$mak = trim($maker);
+							$macsandmakers[$mac] = $mak;
+							$imported++;
 						}
-						catch ( Exception $e )
-						{
-							print ($e->getMessage()."<br />");
-						}
-						
 					}
 				}
 				fclose($handle);
+				$this->FOGCore->addUpdateMACLookupTable($macsandmakers);
 				$this->FOGCore->setMessage($imported._(' mac addresses updated!'));
 			}
 			else
 				print (_("Unable to locate file: $f"));
 		}
-		else if ($_REQUEST["clear"] == "1")
+		else if ($_REQUEST['clear'])
 			$this->FOGCore->clearMACLookupTable();
+		$this->resetRequest();
+		$this->FOGCore->redirect('?node=about&sub=mac-list');
 	}
 	// FOG System Settings
 	/** settings()
@@ -633,6 +638,7 @@ class FOGConfigurationPage extends FOGPage
 			'FOG_TASK_FORCE_REBOOT',
 			'FOG_NEW_CLIENT',
 			'FOG_AES_ENCRYPT',
+			'FOG_EMAIL_ACTION',
 		);
 		// Set title
 		$this->title = _("FOG System Settings");
@@ -654,7 +660,7 @@ class FOGConfigurationPage extends FOGPage
 			'${span}',
 		);
 		$ServiceCats = $this->getClass('ServiceManager')->getSettingCats();
-		print "\n\t\t\t\t\t\t".'<a href="#" class="trigger_expand"><h3>Expand</h3></a>';
+		print "\n\t\t\t\t\t\t".'<a href="#" class="trigger_expand"><h3>Expand All</h3></a>';
 		foreach ((array)$ServiceCats AS $ServiceCAT)
 		{
 			
@@ -710,7 +716,7 @@ class FOGConfigurationPage extends FOGPage
 					$type = "\n\t\t\t".'<select name="${service_id}" autocomplete="off" style="width: 220px">'."\n\t\t\t\t".implode("\n",$options2)."\n\t\t\t".'</select>';
 				}
 				else if ($Service->get('name') == 'FOG_QUICKREG_IMG_ID')
-					$type = $this->getClass('ImageManager')->buildSelectBox($this->FOGCore->getSetting('FOG_QUICKREG_IMG_ID'),$Service->get('id'));
+					$type = $this->getClass('ImageManager')->buildSelectBox($this->FOGCore->getSetting('FOG_QUICKREG_IMG_ID'),$Service->get('id').'" id="${service_name}');
 				else if ($Service->get('name') == 'FOG_QUICKREG_GROUP_ASSOC')
 					$type = $this->getClass('GroupManager')->buildSelectBox($this->FOGCore->getSetting('FOG_QUICKREG_GROUP_ASSOC'),$Service->get('id'));
 				else if ($Service->get('name') == 'FOG_KEY_SEQUENCE')
@@ -719,13 +725,13 @@ class FOGConfigurationPage extends FOGPage
 				{
 					if ($this->FOGCore->getSetting('FOG_QUICKREG_IMG_ID') > 0)
 						$Image = new Image($this->FOGCore->getSetting('FOG_QUICKREG_IMG_ID'));
-					$type = '<p>'.($Image && $Image->isValid() ? $Image->getOS()->get('name') : _('No image specified')).'</p>';
+					$type = '<p id="${service_name}">'.($Image && $Image->isValid() ? $Image->getOS()->get('name') : _('No image specified')).'</p>';
 				}
 				else
-					$type = '<input type="text" name="${service_id}" value="${service_value}" autocomplete="off" />';
+					$type = '<input id="${service_name}" type="text" name="${service_id}" value="${service_value}" autocomplete="off" />';
 				$this->data[] = array(
-					'service_name' => $Service->get('name'),
 					'input_type' => (count(explode(chr(10),$Service->get('value'))) <= 1 ? $type : '<textarea name="${service_id}">${service_value}</textarea>'),
+					'service_name' => $Service->get('name'),
 					'span' => '<span class="icon icon-help hand" title="${service_desc}"></span>',
 					'service_id' => $Service->get('id'),
 					'service_value' => $Service->get('value'),
@@ -747,6 +753,11 @@ class FOGConfigurationPage extends FOGPage
 		print "\n\t\t\t\t\t</div>";
 		print "\n\t\t\t\t</form>";
 	}
+	public function getOSID()
+	{
+		$Image = new Image($_REQUEST['image_id']);
+		print json_encode($Image && $Image->isValid() ? $Image->getOS()->get('name') : _('No image specified'));
+	}
 	// FOG System Settings: POST
 	/** settings_post()
 		Updates the settings set from the fields.
@@ -759,7 +770,9 @@ class FOGConfigurationPage extends FOGPage
 		foreach ((array)$key AS $key)
 		{
 			$Service = new Service($key);
-			if ($Service->get('name') == 'FOG_QUICKREG_IMG_ID' && empty($_REQUEST[$key]))
+			if ($Service->get('name') == 'FOG_MEMORY_LIMIT' && ($_REQUEST[$key] < 128 || !is_numeric($_REQUEST[$key])))
+				$Service->set('value',128)->save();
+			else if ($Service->get('name') == 'FOG_QUICKREG_IMG_ID' && empty($_REQUEST[$key]))
 				$Service->set('value',-1)->save();
 			else if ($Service->get('name') == 'FOG_USER_VALIDPASSCHARS')
 				$Service->set('value',addslashes($_REQUEST[$key]))->save();
@@ -767,7 +780,9 @@ class FOGConfigurationPage extends FOGPage
 			{
 				if ($this->FOGCore->getSetting('FOG_NEW_CLIENT') && $_REQUEST[$key])
 				{
-					$decrypt = $this->FOGCore->aesdecrypt($_REQUEST[$key],$this->FOGCore->getSetting('FOG_AES_ADPASS_ENCRYPT_KEY'));
+					$encdat = substr($_REQUEST[$key],0,-32);
+					$enckey = substr($_REQUEST[$key],-32);
+					$decrypt = $this->FOGCore->aesdecrypt($encdat,$enckey);
 					if ($decrypt && mb_detect_encoding($decrypt, 'UTF-8', true))
 						$password = $decrypt;
 					else
@@ -775,7 +790,22 @@ class FOGConfigurationPage extends FOGPage
 				}
 				else
 					$password = $_REQUEST[$key];
-				$Service->set('value',$this->FOGCore->aesencrypt($password,$this->FOGCore->getSetting('FOG_AES_ADPASS_ENCRYPT_KEY')))->save();
+				$Service->set('value',$this->FOGCore->aesencrypt($password,$this->FOGCore->getSetting('FOG_AES_ADPASS_ENCRYPT_KEY')).$this->FOGCore->getSetting('FOG_AES_ADPASS_ENCRYPT_KEY'))->save();
+			}
+			else if ($this->FOGCore->getSetting('FOG_NEW_CLIENT') && $Service->get('name') == 'FOG_AES_ADPASS_ENCRYPT_KEY')
+			{
+				if ($this->FOGCore->getSetting('FOG_NEW_CLIENT') && $_REQUEST[$key])
+				{
+					$encdat = substr($this->FOGCore->getSetting('FOG_AD_DEFAULT_PASSWORD'),0,-32);
+					$enckey = substr($this->FOGCore->getSetting('FOG_AD_DEFAULT_PASSWORD'),-32);
+					$decrypt = $this->FOGCore->aesdecrypt($encdat,$enckey);
+					if ($decrypt && mb_detect_encoding($decrypt, 'UTF-8', true))
+						$password = $decrypt;
+					else
+						$password = $this->FOGCore->getSetting('FOG_AD_DEFAULT_PASSWORD');
+				}
+				$this->FOGCore->setSetting('FOG_AD_DEFAULT_PASSWORD',$this->FOGCore->aesencrypt($password,$_REQUEST[$key]).$_REQUEST[$key]);
+				$Service->set('value',$_REQUEST[$key])->save();
 			}
 			else
 				$Service->set('value',$_REQUEST[$key])->save();
@@ -790,38 +820,37 @@ class FOGConfigurationPage extends FOGPage
 	*/
 	public function log()
 	{
+		$apacheerrlog = (file_exists('/var/log/httpd/error_log') ? '/var/log/httpd/error_log' : (file_exists('/var/log/apache2/error.log') ? '/var/log/apache2/error.log' : false));
+		$apacheacclog = (file_exists('/var/log/httpd/access_log') ? '/var/log/httpd/access_log' : (file_exists('/var/log/apache2/access.log') ? '/var/log/apache2/access.log' : false));
+		$multicastlog = (file_exists('/var/log/fog/multicast.log') ? '/var/log/fog/multicast.log' : false);
+		$schedulerlog = (file_exists('/var/log/fog/fogscheduler.log') ? '/var/log/fog/fogscheduler.log' : false);
+		$imgrepliclog = (file_exists('/var/log/fog/fogreplicator.log') ? '/var/log/fog/fogreplicator.log' : false);
+		$snapinreplog = (file_exists('/var/log/fog/fogsnapinrep.log') ? '/var/log/fog/fogsnapinrep.log' : false);
+		$files = array(
+			$multicastlog ? 'Multicast' : null => $multicastlog ? $multicastlog : null,
+			$schedulerlog ? 'Scheduler' : null => $schedulerlog ? $schedulerlog : null,
+			$imgrepliclog ? 'Image Replicator' : null => $imgrepliclog ? $imgrepliclog : null,
+			$snapinreplog ? 'Snapin Replicator' : null => $snapinreplog ? $snapinreplog : null,
+			$apacheerrlog ? 'Apache Error Log' : null  => $apacheerrlog ? $apacheerrlog : null,
+			$apacheacclog ? 'Apache Access Log' : null  => $apacheacclog ? $apacheacclog : null,
+		);
+		$files = array_filter((array)$files);
 		// Set title
-		$this->title = "FOG Log Viewer";
+		$this->title = _('FOG Log Viewer');
 		print "\n\t\t\t<p>";
 		print "\n\t\t\t".'<form method="post" action="'.$this->formAction.'">';
 
 		print "\n\t\t\t<p>"._('File:');
-		foreach (array('Multicast','Scheduler','Replicator') AS $value)
-			$options3[] = "\n\t\t\t\t".'<option '.($value == $_REQUEST['logtype'] ? 'selected="selected"' : '').' value="'.$value.'">'.$value.'</option>';
-		print "\n\t\t\t".'<select name="logtype">'.implode("\n\t\t\t\t",$options3)."\n\t\t\t".'</select>';
+		foreach ($files AS $value => $file)
+			$options3[] = "\n\t\t\t\t".'<option '.($value == $_REQUEST['logtype'] ? 'selected="selected"' : '').' value="'.$file.'">'.$value.'</option>';
+		print "\n\t\t\t".'<select name="logtype" id="logToView">'.implode("\n\t\t\t\t",$options3)."\n\t\t\t".'</select>';
 		print "\n\t\t\t"._('Number of lines:');
 		foreach (array(20, 50, 100, 200, 400, 500, 1000) AS $value)
 			$options4[] = '<option '.($value == $_REQUEST['n'] ? 'selected="selected"' : '').' value="'.$value.'">'.$value.'</option>';
-		print "\n\t\t\t".'<select name="n">'.implode("\n\t\t\t\t",$options4)."\n\t\t\t".'</select>';
-		print "\n\t\t\t".'<input type="submit" value="'._('Refresh').'" />';
+		print "\n\t\t\t".'<select name="n" id="linesToView">'.implode("\n\t\t\t\t",$options4)."\n\t\t\t".'</select>';
 		print "\n\t\t\t</p>";
 		print "\n\t\t\t</form>";
-		print "\n\t\t\t".'<div class="sub l">';
-		print "\n\t\t\t\t<pre>";
-		$n = 20;
-		if ( $_REQUEST["n"] != null && is_numeric($_REQUEST["n"]) )
-			$n = $_REQUEST["n"];
-		$t = trim($_REQUEST["logtype"]);
-		$logfile = $this->FOGCore->getSetting( "FOG_UTIL_BASE" ) . "/log/multicast.log";
-		if ( $t == "Multicast" )
-			$logfile = $this->FOGCore->getSetting( "FOG_UTIL_BASE" ) . "/log/multicast.log";
-		else if ( $t == "Scheduler" )
-			$logfile = $this->FOGCore->getSetting( "FOG_UTIL_BASE" ) . "/log/fogscheduler.log";
-		else if ( $t == "Replicator" )
-			$logfile = $this->FOGCore->getSetting( "FOG_UTIL_BASE" ) . "/log/fogreplicator.log";				
-		system("tail -n $n \"$logfile\"");
-		print "\n\t\t\t\t</pre>";
-		print "\n\t\t\t</div>";
+		print "\n\t\t\t".'<div id="logsGoHere">&nbsp;</div>';
 		print "\n\t\t\t</p>";
 	}
 	/** config()
@@ -882,9 +911,9 @@ class FOGConfigurationPage extends FOGPage
 					print "\n\t\t\t<h2>"._('File Import successful!').'</h2>';
 				else
 					throw new Exception('Could not upload file!');
-				exec('mysql -u' . DATABASE_USERNAME . ' -p' . DATABASE_PASSWORD . ' -h'.DATABASE_HOST.' '.DATABASE_NAME.' < '.$dbFileName);
+				exec('mysql -u' . DATABASE_USERNAME . ' -p' . DATABASE_PASSWORD . ' -h'.preg_replace('#p:#','',DATABASE_HOST).' '.DATABASE_NAME.' < "'.$dbFileName.'"');
 				print "\n\t\t\t<h2>"._('Database Added!').'</h2>';
-				exec('rm -rf '.$dbFileName);
+				exec('rm -rf "'.$dbFileName.'"');
 			}
 		}
 		catch (Exception $e)

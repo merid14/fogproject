@@ -2,6 +2,19 @@
 require('../commons/base.inc.php');
 try
 {
+	if ($_REQUEST['newService'])
+	{
+		$HostManager = new HostManager();
+		$MACs = HostManager::parseMacList($_REQUEST['mac']);
+		if (!$MACs)
+			throw new Exception('#!im');
+		// Get the Host
+		$Host = $HostManager->getHostByMacAddresses($MACs);
+		if (!$Host || !$Host->isValid() || $Host->get('pending'))
+			throw new Exception('#!ih');
+		if ($_REQUEST['newService'] && !$Host->get('pub_key'))
+			throw new Exception('#!ihc');
+	}
 	if (!in_array($_REQUEST['action'],array('ask','get','list')))
 		throw new Exception('#!er: Needs action string of ask, get, or list');
 	if (in_array($_REQUEST['action'],array('ask','get')) && !$_REQUEST['file'])
@@ -38,12 +51,13 @@ try
 	}
 	if ($Data)
 		$Datatosend = $FOGCore->getSetting('FOG_NEW_CLIENT') && $_REQUEST['newService'] ? "#!ok\n".implode("\n",$Data) : implode("\n",$Data);
+	if ($_REQUEST['newService'])
+		print "#!enkey=".$FOGCore->certEncrypt($Datatosend,$Host);
+	else
+		print $Datatosend;
 }
 catch (Exception $e)
 {
-	$Datatosend = $e->getMessage();
+	print $e->getMessage();
+	exit;
 }
-if ($FOGCore->getSetting('FOG_NEW_CLIENT') && $FOGCore->getSetting('FOG_AES_ENCRYPT'))
-	print "#!en=".$FOGCore->aesencrypt($Datatosend,$FOGCore->getSetting('FOG_AES_PASS_ENCRYPT_KEY'));
-else
-	print $Datatosend;

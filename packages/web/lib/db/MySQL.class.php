@@ -31,7 +31,7 @@ class MySQL extends FOGBase
 		}
 		catch (Exception $e)
 		{
-			$this->FOGCore->error(sprintf('Failed to %s: %s', __FUNCTION__, $e->getMessage()));
+			$this->error(sprintf('Failed to %s: %s', __FUNCTION__, $e->getMessage()));
 		}
 	}
 	/** __destruct()
@@ -41,7 +41,7 @@ class MySQL extends FOGBase
 	{
 		if (!$this->link)
 			return;
-		$this->link = null;
+		unset($this->link,$this->result);
 		return;
 	}
 	/** close()
@@ -49,11 +49,6 @@ class MySQL extends FOGBase
 	*/
 	public function close()
 	{
-		if ($this->link)
-		{
-			$this->link->kill($this->link->thread_id);
-			$this->link->close();
-		}
 		$this->__destruct();
 	}
 	/** connect()
@@ -63,19 +58,17 @@ class MySQL extends FOGBase
 	{
 		try
 		{
-		/*	if ($this->link)
-				$this->close();
-			else*/
 			if (!$this->link)
 				$this->link = new mysqli($this->host, $this->user, $this->pass);
-			if (!$this->link)
-				throw new Exception(sprintf('Host: %s, Username: %s, Password: %s, Database: %s', $this->host, $this->user, '[Protected]', $this->dbname));
-			if ($this->dbname)
-				$this->select_db($this->dbname);
+			if ($this->link->connect_error)
+				throw new Exception(sprintf('Host: %s, Username: %s, Password: %s, Database: %s, Error: %s', $this->host, $this->user, '[Protected]', $this->dbname, $this->link->connect_error));
+			$this->link->set_charset('utf8');
+			if (!$this->link->select_db($this->dbname))
+				throw new Exception(_('Issue working with the current DB, maybe it has not been created yet'));
 		}
 		catch (Exception $e)
 		{
-			$this->FOGCore->debug(sprintf('Failed to %s: %s', __FUNCTION__, $e->getMessage()));
+			$this->debug(sprintf('Failed to %s: %s', __FUNCTION__, $e->getMessage()));
 		}
 		return $this;
 	}
@@ -93,13 +86,16 @@ class MySQL extends FOGBase
 				$sql = vsprintf($sql, $data);
 			// Query
 			$this->query = $sql;
-			$this->queryResult = $this->link->query($this->query) or $this->FOGCore->debug($this->sqlerror(),$this->query);
+			if (!$this->queryResult = $this->link->query($this->query))
+				throw new Exception(_('An error in running a query has been found Error: ').$this->link->error);
+			if ($this->num_rows)
+				$this->link->free();
 			// INFO
-			$this->FOGCore->info($this->query);
+			$this->info($this->query);
 		}
 		catch (Exception $e)
 		{
-			$this->FOGCore->debug(sprintf('Failed to %s: %s', __FUNCTION__, $e->getMessage()));
+			$this->debug(sprintf('Failed to %s: %s', __FUNCTION__, $e->getMessage()));
 		}
 		return $this;
 	}
@@ -118,11 +114,10 @@ class MySQL extends FOGBase
 				$this->result = true;
 			else
 				$this->result = $this->queryResult->fetch_array($type);
-			//return $this->result;
 		}
 		catch (Exception $e)
 		{
-			$this->FOGCore->debug(sprintf('Failed to %s: %s', __FUNCTION__, $e->getMessage()));
+			$this->debug(sprintf('Failed to %s: %s', __FUNCTION__, $e->getMessage()));
 		}
 		return $this;
 	}
@@ -149,35 +144,19 @@ class MySQL extends FOGBase
 		{
 			// Result finished
 			if ($this->result === false)
-				return false;
+				throw new Exception(_('No data returned'));
 			// Query failed
 			if ($this->queryResult === false)
-				return false;
+				throw new Exception(_('No query was performed'));
 			// Return: 'field' if requested and field exists in results, otherwise the raw result
-			return ($field && array_key_exists($field, $this->result) ? $this->result[$field] : $this->result);
+			$result = ($field && array_key_exists($field, $this->result) ? $this->result[$field] : $this->result);
 		}
 		catch (Exception $e)
 		{
-			$this->FOGCore->debug(sprintf('Failed to %s: %s', __FUNCTION__, $e->getMessage()));
+			$result = false;
+			$this->debug(sprintf('Failed to %s: %s', __FUNCTION__, $e->getMessage()));
 		}
-		return false;
-	}
-	/** select_db($db)
-		Selects the sent database.
-	*/
-	public function select_db($db)
-	{
-		try
-		{
-			if (!$this->link->select_db($db))
-				throw new Exception("$db");
-			$this->dbname = $db;
-		}
-		catch (Exception $e)
-		{
-			$this->FOGCore->debug(sprintf('Failed to %s: %s', __FUNCTION__, $e->getMessage()));
-		}
-		return $this;
+		return $result;
 	}
 	/** sqlerror()
 		What was the error.
@@ -251,7 +230,7 @@ class MySQL extends FOGBase
 	*/
 	private function clean($data)
 	{
-		return (get_magic_quotes_gpc() ? $this->link->escape_string(stripslashes($data)) : $this->link->escape_string($data));;
+		return $this->link->real_escape_string(strip_tags($data));
 	}
 	// For legacy $conn connections
 	/** getLink()

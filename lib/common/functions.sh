@@ -235,7 +235,7 @@ configureSnapins()
 	if [ -d "$snapindir" ]
 	then
 		chmod 755 $snapindir;
-		chown ${apacheuser} ${snapindir};
+		chown -R fog:${apacheuser} ${snapindir};
 		echo "...OK";	
 	else
 		echo "...Failed!";
@@ -312,7 +312,28 @@ EOF
 	fi
 }
 
+linkOptFogDir()
+{
+	if [ ! -L "/var/log/fog" ]; then
+		echo -n "  * Linking /opt/fog/log to /var/log/fog...";
+		ln -s "/opt/fog/log" "/var/log/fog";
+		echo "OK";
+	fi
+	if [ ! -L "/etc/fog" ]; then
+		echo -n "  * Linking /opt/fog/service/etc to /etc/fog...";
+		ln -s "/opt/fog/service/etc" "/etc/fog";
+		echo "OK";
+	fi
+}
 
+removeOldSSL()
+{
+	if [ -d "/var/www/fogsslkeypair" ]; then
+		echo -n "  * Remove old private key...";
+		rm -rf "/var/www/fogsslkeypair"
+		echo "OK";
+	fi
+}
 
 configureStorage()
 {

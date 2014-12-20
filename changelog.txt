@@ -22,6 +22,8 @@ assumed start sectors were starting at 2048.  Hopefully this is all good now.
 * Move clamav off of server to static binaries.  Bumps size of installer
 folder from 80MB to 277MB.  However clamav is not loaded in the initrd file
 and this same clamav can operate on the fog server.
+* Move kernels and inits out of SVN and download during installer.
+* Init's should initialize any disk now.
 * All resizable images will now upload with a common means of d1px.img rather
 than sys.img.000 or imagename as a file.
 * Make compatibility checks to allow older named images to still download.
@@ -33,8 +35,13 @@ This should allow OEM built systems to be imaged even with resizable.
 * Init's are now truly native with dns pulling.
 * Added to inits to check for has_usb_nic flag which simply tells the system
 to wait for the user to unplug and replug their usb nics.
-* Update init.xz/init_32.xz to 2014.08 and update kernel infos to 3.16.1
+* Update init.xz/init_32.xz to 2014.11 and update kernel infos to 3.16.1
 within the inits
+* Add jquery to read log files.
+* Add Apache error and access logs to the log viewer elements.
+* Add capability to only filter logs if they exist.
+* Add jquery script to allow quickreg_img_id to dynamically update the os for
+the selected image.
 * Add protection flag to image files.
 * Add installer files from David Fear to fog to allow FOG Installation on
 Arch Linux.
@@ -60,11 +67,19 @@ the event of: BOOT_ITEMS_<titlename>  Replacing titlename to stuff like:
 fog_local or fog_advanced.  The period is replaced with an _ to ensure
 compatibility.
 * Add example hook for BootItem information adjustments in a hook format.
+* Add imageid to task table.  Will be useful for quick, multicast join, etc.
+* Add imageGroupAssoc table to allow images to be assigned to multiple groups.
+This is useful to assign images across groups and have replicator handle them.
 * Move many of the location plugin in the core code to work from hooks
 directly purely from the plugin.
 * Add WOL broadcast address plugin.  This simply tells the fog server where to
 send wol broadcasts and is useful in the case of vlans where you don't control
 your own network.
+* Add snapin/image replication to work group->group as well as the normal.
+* Add replication to allow multiple processes at the same time.
+* Add bandwidth limitations on replication.
+* Add capability to tell the system which tasks you want to take slots.
+* Add multicast session joining even with non-registered hosts.
 * Change names of PXE Menu stuff to iPXE stuff.
 
 Version 1.2.0

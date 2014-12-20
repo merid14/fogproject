@@ -107,37 +107,6 @@ class TaskManagementPage extends FOGPage
 			$this->title = _('Search');
 			// Set search form
 			$this->searchFormURL = sprintf('%s?node=%s&sub=search', $_SERVER['PHP_SELF'], $this->node);
-			// Find data -> Push data
-			foreach ((array)$this->getClass('TaskManager')->find(array('stateID' => array(1,2,3))) AS $Task)
-			{
-				$Host = current($this->getClass('HostManager')->find(array('id' => $Task->get('hostID'))));
-				$this->data[] = array(
-					'columnkill' => $Task->get('stateID') == 1 || $Task->get('stateID') == 2 || $Task->get('stateID') == '3' ? '${details_taskforce} <a href="?node=tasks&sub=cancel-task&id=${id}"><span class="icon icon-kill" title="' . _('Cancel Task') . '"></span></a>' : '',
-					'startedby' => $Task->get('createdBy'),
-					'id'	=> $Task->get('id'),
-					'name'	=> $Task->get('name'),
-					'time'	=> $this->formatTime($Task->get('createdTime'),'Y-m-d H:i:s'),
-					'state'	=> $Task->getTaskStateText(),
-					'forced'	=> ($Task->get('isForced') ? '1' : '0'),
-					'type'	=> $Task->getTaskTypeText(),
-					'percentText' => $Task->get('percent'),
-					'class' => ++$i % 2 ? 'alt2' : 'alt1',
-					'width' => 600 * ($Task->get('percent')/100),
-					'elapsed' => $Task->get('timeElapsed'),
-					'remains' => $Task->get('timeRemaining'),
-					'percent' => $Task->get('pct'),
-					'copied' => $Task->get('dataCopied'),
-					'total' => $Task->get('dataTotal'),
-					'bpm' => $Task->get('bpm'),
-					'details_taskname'	=> ($Task->get('name')	? sprintf('<div class="task-name">%s</div>', $Task->get('name')) : ''),
-					'details_taskforce'	=> ($Task->get('isForced') ? sprintf('<span class="icon icon-forced" title="%s"></span>', _('Task forced to start')) : ($Task->get('typeID') < 3 && $Task->get('stateID') < 3 ? sprintf('<a href="?node=tasks&sub=force-task&id=%s"><span class="icon icon-force" title="%s"></span></a>', $Task->get('id'),_('Force task to start')) : '&nbsp;')),
-					'host_id'	=> $Task->get('hostID'),
-					'host_name'	=> $Host ? $Host->get('name') : '',
-					'host_mac'	=> $Host ? $Host->get('mac')->__toString() : '',
-					'icon_state'	=> strtolower(str_replace(' ', '', $Task->getTaskStateText())),
-					'icon_type'	=> strtolower(preg_replace(array('#[[:space:]]+#', '#[^\w-]#', '#\d+#', '#-{2,}#'), array('-', '', '', '-'), $Task->getTaskTypeText())),
-				);
-			}
 			// Hook
 			$this->HookManager->processEvent('HOST_DATA', array('headerData' => &$this->headerData, 'data' => &$this->data, 'templates' => &$this->templates, 'attributes' => &$this->attributes));
 			// Output
@@ -623,7 +592,7 @@ class TaskManagementPage extends FOGPage
 			'<form method="post" method="?node=tasks&sub=active-snapins">${name}',
 			'${startDate}',
 			'${state}',
-			'<input type="checkbox" id="${id}" class="delid" name="rmid" value="%id%" onclick="this.form.submit()" title="Kill Task" /><label for="${id}">'._('Delete').'</label></form>',
+			'<input type="checkbox" id="${id}" class="delid" name="rmid" value="%id%" onclick="this.form.submit()" title="Kill Task" /><label for="${id}" class="icon icon-hand" title="'._('Delete').'">&nbsp;</label></form>',
 		);
 		$this->attributes = array(
 			array(),
@@ -718,7 +687,7 @@ class TaskManagementPage extends FOGPage
 			'${task_type}',
 			'<small>${time}</small>',
 			'${active}/${type}',
-			'<input type="checkbox" name="rmid" id="r${schedtaskid}" class="delid" value="${schedtaskid}" onclick="this.form.submit()" /><label for="r${schedtaskid}">'._('Delete').'</label></form>',
+			'<input type="checkbox" name="rmid" id="r${schedtaskid}" class="delid" value="${schedtaskid}" onclick="this.form.submit()" /><label for="r${schedtaskid}" class="icon icon-hand" title="'._('Delete').'">&nbsp;</label></form>',
 		);
 		// Row attributes
 		$this->attributes = array(

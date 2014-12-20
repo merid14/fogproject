@@ -53,8 +53,6 @@ class BootMenu extends FOGBase
 		$ramsize = $this->FOGCore->getSetting('FOG_KERNEL_RAMDISK_SIZE');
 		$dns = $this->FOGCore->getSetting('FOG_PXE_IMAGE_DNSADDRESS');
 		$keymap = $this->FOGCore->getSetting('FOG_KEYMAP');
-		$timeout = $this->FOGCore->getSetting('FOG_PXE_MENU_TIMEOUT') * 1000;
-		$this->timeout = $timeout;
 		$memdisk = 'memdisk';
 		$memtest = $this->FOGCore->getSetting('FOG_MEMTEST_KERNEL');
 		// Default bzImage and imagefile based on arch received.
@@ -77,6 +75,11 @@ class BootMenu extends FOGBase
 		// menu Access sets if the menu is displayed.  Menu access is a url get variable if a user has specified hidden menu it will override if menuAccess is set.
 		if (!$_REQUEST['menuAccess'])
 			$this->hiddenmenu = $this->FOGCore->getSetting('FOG_PXE_MENU_HIDDEN');
+		if ($this->hiddenmenu)
+			$timeout = $this->FOGCore->getSetting('FOG_PXE_HIDDENMENU_TIMEOUT') * 1000;
+		else
+			$timeout = $this->FOGCore->getSetting('FOG_PXE_MENU_TIMEOUT') * 1000;
+		$this->timeout = $timeout;
 		// Generate the URL to boot from.
 		$this->booturl = "http://${webserver}${webroot}service";
 		// Store the host call into class global.
@@ -87,7 +90,7 @@ class BootMenu extends FOGBase
 		// If it is installed store the needed elements into variables.
 		if ($CaponePlugInst)
 		{
-			$this->storage = $StorageNode->get('ip');
+			$this->storage = $this->FOGCore->resolveHostname($StorageNode->get('ip'));
 			$this->path = $StorageNode->get('path');
 			$this->shutdown = $this->FOGCore->getSetting('FOG_PLUGIN_CAPONE_SHUTDOWN');
 		}
@@ -120,7 +123,7 @@ class BootMenu extends FOGBase
 		$this->initrd = "imgfetch $imagefile";
 		// Set the default line based on all the menu entries and only the one with the default set.
 		$defMenuItem = current($this->getClass('PXEMenuOptionsManager')->find(array('default' => 1)));
-		$this->defaultChoice = "choose --default ".($defMenuItem && $defMenuItem->isValid() ? $defMenuItem->get('name') : 'fog.local')." --timeout $timeout target && goto \${target}";
+		$this->defaultChoice = "choose --default ".($defMenuItem && $defMenuItem->isValid() ? $defMenuItem->get('name') : 'fog.local').(!$this->hiddenmenu ? " --timeout $timeout" : " --timeout 0").' target && goto ${target}';
 		// Register the success of the boot to the database:
 		$iPXE = current($this->getClass('iPXEManager')->find(array('product' => $_REQUEST['product'],'manufacturer' => $_REQUEST['manufacturer'],'file' => $_REQUEST['filename'])));
 		if ($iPXE && $iPXE->isValid())
@@ -182,12 +185,12 @@ class BootMenu extends FOGBase
 				"#!ipxe",
 				"cpuid --ext 29 && set arch x86_64 || set arch i386",
 				"params",
-				"param mac0 \${net0/mac}",
-				"param arch \${arch}",
+				'param mac0 ${net0/mac}',
+				'param arch ${arch}',
 				"param menuAccess 1",
 				"param debug ".($debug ? 1 : 0),
-				"isset \${net1/mac} && param mac1 \${net1/mac} || goto bootme",
-				"isset \${net2/mac} && param mac2 \${net2/mac} || goto bootme",
+				'isset ${net1/mac} && param mac1 ${net1/mac} || goto bootme',
+				'isset ${net2/mac} && param mac2 ${net2/mac} || goto bootme',
 				":bootme",
 	    		"chain -ar $this->booturl/ipxe/boot.php##params",
 			);
@@ -200,14 +203,14 @@ class BootMenu extends FOGBase
 				":menuAccess",
 				"login",
 				"params",
-				"param mac0 \${net0/mac}",
-				"param arch \${arch}",
-				"param username \${username}",
-				"param password \${password}",
+				'param mac0 ${net0/mac}',
+				'param arch ${arch}',
+				'param username ${username}',
+				'param password ${password}',
 				"param menuaccess 1",
 				"param debug ".($debug ? 1 : 0),
-				"isset \${net1/mac} && param mac1 \${net1/mac} || goto bootme",
-				"isset \${net2/mac} && param mac2 \${net2/mac} || goto bootme",
+				'isset ${net1/mac} && param mac1 ${net1/mac} || goto bootme',
+				'isset ${net2/mac} && param mac2 ${net2/mac} || goto bootme',
 				":bootme",
 				"chain -ar $this->booturl/ipxe/boot.php##params",
 			);
@@ -261,7 +264,7 @@ class BootMenu extends FOGBase
 				"echo Host approved successfully",
 				"sleep 3"
 			);
-			$this->Host->createImagePackage(10,'Inventory',false,false,false,false,'ipxe');
+			$this->Host->createImagePackage(10,'Inventory',false,false,false,false,$_REQUEST['username']);
 		}
 		else
 		{
@@ -311,11 +314,11 @@ class BootMenu extends FOGBase
 			"cpuid --ext 29 && set arch x86_64 || set arch i386",
 			"prompt --key y Would you like to delete this host? (y/N): &&",
 			"params",
-			"param mac0 \${net0/mac}",
-			"param arch \${arch}",
+			'param mac0 ${net0/mac}',
+			'param arch ${arch}',
 			"param delconf 1",
-			"isset \${net1/mac} && param mac1 \${net1/mac} || goto bootme",
-			"isset \${net2/mac} && param mac2 \${net2/mac} || goto bootme",
+			'isset ${net1/mac} && param mac1 ${net1/mac} || goto bootme',
+			'isset ${net2/mac} && param mac2 ${net2/mac} || goto bootme',
 			":bootme",
 			"chain -ar $this->booturl/ipxe/boot.php##params",
 		);
@@ -333,11 +336,11 @@ class BootMenu extends FOGBase
 			"cpuid --ext 29 && set arch x86_64 || set arch i386",
 			"prompt --key y Would you like to approve this host? (y/N): &&",
 			"params",
-			"param mac0 \${net0/mac}",
-			"param arch \${arch}",
+			'param mac0 ${net0/mac}',
+			'param arch ${arch}',
 			"param aprvconf 1",
-			"isset \${net1/mac} && param mac1 \${net1/mac} || goto bootme",
-			"isset \${net2/mac} && param mac2 \${net2/mac} || goto bootme",
+			'isset ${net1/mac} && param mac1 ${net1/mac} || goto bootme',
+			'isset ${net2/mac} && param mac2 ${net2/mac} || goto bootme',
 			":bootme",
 			"chain -ar $this->booturl/ipxe/boot.php##params",
 		);
@@ -356,11 +359,11 @@ class BootMenu extends FOGBase
 			"echo -n Please enter the product key>",
 			"read key",
 			"params",
-			"param mac0 \${net0/mac}",
-			"param arch \${arch}",
-			"param key \${key}",
-			"isset \${net1/mac} && param mac1 \${net1/mac} || goto bootme",
-			"isset \${net2/mac} && param mac2 \${net2/mac} || goto bootme",
+			'param mac0 ${net0/mac}',
+			'param arch ${arch}',
+			'param key ${key}',
+			'isset ${net1/mac} && param mac1 ${net1/mac} || goto bootme',
+			'isset ${net2/mac} && param mac2 ${net2/mac} || goto bootme',
 			":bootme",
 			"chain -ar $this->booturl/ipxe/boot.php##params",
 		);
@@ -373,7 +376,7 @@ class BootMenu extends FOGBase
 	*/
 	public function sesscheck()
 	{
-		$sesscount = current($this->getClass('MulticastSessionsManager')->find(array('name' => $_REQUEST['sessname'],'stateID' => array(0,1))));
+		$sesscount = current($this->getClass('MulticastSessionsManager')->find(array('name' => $_REQUEST['sessname'],'stateID' => array(0,1,2,3))));
 		if (!$sesscount || !$sesscount->isValid())
 		{
 			$Send['checksession'] = array(
@@ -383,11 +386,11 @@ class BootMenu extends FOGBase
 				"sleep 3",
 				"cpuid --ext 29 && set arch x86_64 || set arch i386",
 				"params",
-				"param mac0 \${net0/mac}",
-				"param arch \${arch}",
+				'param mac0 ${net0/mac}',
+				'param arch ${arch}',
 				"param sessionJoin 1",
-				"isset \${net1/mac} && param mac1 \${net1/mac} || goto bootme",
-				"isset \${net2/mac} && param mac2 \${net2/mac} || goto bootme",
+				'isset ${net1/mac} && param mac1 ${net1/mac} || goto bootme',
+				'isset ${net2/mac} && param mac2 ${net2/mac} || goto bootme',
 				":bootme",
 				"chain -ar $this->booturl/ipxe/boot.php##params",
 			);
@@ -410,15 +413,148 @@ class BootMenu extends FOGBase
 			"echo -n Please enter the session name to join>",
 			"read sessname",
 			"params",
-			"param mac0 \${net0/mac}",
-			"param arch \${arch}",
-			"param sessname \${sessname}",
-			"isset \${net1/mac} && param mac1 \${net1/mac} || goto bootme",
-			"isset \${net2/mac} && param mac2 \${net2/mac} || goto bootme",
+			'param mac0 ${net0/mac}',
+			'param arch ${arch}',
+			'param sessname ${sessname}',
+			'isset ${net1/mac} && param mac1 ${net1/mac} || goto bootme',
+			'isset ${net2/mac} && param mac2 ${net2/mac} || goto bootme',
 			":bootme",
 			"chain -ar $this->booturl/ipxe/boot.php##params",
 		);
 		$this->parseMe($Send);
+	}
+	/**falseTasking() only runs if hosts aren't registered
+	* @param $mc = false, only specified if the task is multicast.
+	* @param $Image = send the specified image, really only needed for non-multicast
+	* @return void
+	**/
+	public function falseTasking($mc = false,$Image = false)
+	{
+		$TaskType = new TaskType(1);
+		if ($mc)
+		{
+			$Image = $mc->getImage();
+			$TaskType = new TaskType(8);
+		}
+		$StorageGroup = $Image->getStorageGroup();
+		$StorageNode = $StorageGroup->getOptimalStorageNode();
+		$osid = $Image->get('osID');
+		$storage = sprintf('%s:/%s/%s',$this->FOGCore->resolveHostname(trim($StorageNode->get('ip'))),trim($StorageNode->get('path'),'/'),'');
+		$storageip = $this->FOGCore->resolveHostname($StorageNode->get('ip'));
+		$img = $Image->get('path');
+		$imgFormat = $Image->get('format');
+		$imgType = $Image->getImageType()->get('type');
+		$imgPartitionType = $Image->getImagePartitionType()->get('type');
+		$imgid = $Image->get('id');
+		$chkdsk = $this->FOGCore->getSetting('FOG_DISABLE_CHKDSK') == 1 ? 0 : 1;
+		$ftp = $this->FOGCore->resolveHostname($this->FOGCore->getSetting('FOG_TFTP_HOST'));
+		$port = ($mc ? $mc->get('port') : null);
+		$miningcores = $this->FOGCore->getSetting('FOG_MINING_MAX_CORES');
+		$kernelArgsArray = array(
+			"mac=$mac",
+			"ftp=$ftp",
+			"storage=$storage",
+			"storageip=$storageip",
+			"web=$this->web",
+			"osid=$osid",
+			"loglevel=4",
+			"consoleblank=0",
+			"irqpoll",
+			"chkdsk=$chkdsk",
+			"img=$img",
+			"imgType=$imgType",
+			"imgPartitionType=$imgPartitionType",
+			"imgid=$imgid",
+			"imgFormat=$imgFormat",
+			"shutdown=0",
+			array(
+				'value' => "capone=1",
+				'active' => !$this->Host || !$this->Host->isValid(),
+			),
+			array(
+				'value' => "port=$port mc=yes",
+				'active' => $mc,
+			),
+			array(
+				'value' => "mining=1 miningcores=$miningcores",
+				'active' => $this->FOGCore->getSetting('FOG_MINING_ENABLE'),
+			),
+			$TaskType->get('kernelArgs'),
+			$this->FOGCore->getSetting('FOG_KERNEL_ARGS'),
+		);
+		$this->printTasking($kernelArgsArray);
+	}
+	public function printImageList()
+	{
+		$Send['ImageListing'] = array(
+			'#!ipxe',
+			'goto MENU',
+			':MENU',
+			'menu',
+		);
+		$defItem = 'choose target && goto ${target}';
+		$Images = $this->getClass('ImageManager')->find();
+		if (!$Images)
+		{
+			$Send['NoImages'] = array(
+				'#!ipxe',
+				'echo No Images on server found',
+				'sleep 3',
+			);
+			$this->parseMe($Send);
+			$this->chainBoot();
+		}
+		else
+		{
+			foreach($Images AS $Image)
+			{
+				// Only create menu items if the image is valid.
+				if ($Image && $Image->isValid())
+				{
+					array_push($Send['ImageListing'],"item ".$Image->get('path').' '.$Image->get('name'));
+					// If the host is valid and the image is set and valid, set the selected target.
+					if ($this->Host && $this->Host->isValid() && $this->Host->getImage() && $this->Host->getImage()->isValid() && $this->Host->getImage()->get('id') == $Image->get('id'))
+						$defItem = 'choose --default '.$Image->get('path').' target && goto ${target}';
+				}
+			}
+			// Add the return to other menu
+			array_push($Send['ImageListing'],'item return Return to menu');
+			// Insert the choice of menu item.
+			array_push($Send['ImageListing'],$defItem);
+			foreach($Images AS $Image)
+			{
+				if ($Image && $Image->isValid())
+				{
+					$Send['pathofimage'.$Image->get('name')] = array(
+						':'.$Image->get('path'),
+						'set imageID '.$Image->get('id'),
+						'params',
+						'param mac0 ${net0/mac}',
+						'param arch ${arch}',
+						'param imageID ${imageID}',
+						'param qihost 1',
+						'param username ${username}',
+						'param password ${password}',
+						'isset ${net1/mac} && param mac1 ${net1/mac} || goto bootme',
+						'isset ${net2/mac} && param mac2 ${net2/mac} || goto bootme',
+					);
+				}
+			}
+			$Send['returnmenu'] = array(
+				':return',
+				'params',
+				'param mac0 ${net0/mac}',
+				'param arch ${arch}',
+				'isset ${net1/mac} && param mac1 ${net1/mac} || goto bootme',
+				'isset ${net2/mac} && param mac2 ${net2/mac} || goto bootme',
+			);
+			$Send['bootmefunc'] = array(
+				':bootme',
+				'chain -ar '.$this->booturl.'/ipxe/boot.php##params',
+				'goto MENU',
+			);
+			$this->parseMe($Send);
+		}
 	}
 	/**
 	* multijoin()
@@ -430,10 +566,15 @@ class BootMenu extends FOGBase
 		$MultiSess = new MulticastSessions($msid);
 		if ($MultiSess && $MultiSess->isValid())
 		{
-			$this->Host->set('imageID',$MultiSess->get('image'));
-			 // Create the host task
-			if($this->Host->createImagePackage(8,$MultiSess->get('name'),false,false,true,false,'ipxe'))
-				$this->chainBoot(false,true);
+			if ($this->Host && $this->Host->isValid())
+			{
+				$this->Host->set('imageID',$MultiSess->get('image'));
+				 // Create the host task
+				if($this->Host->createImagePackage(8,$MultiSess->get('name'),false,false,true,false,$_REQUEST['username'],'',true))
+					$this->chainBoot(false,true);
+			}
+			else
+				$this->falseTasking($MultiSess);
 		}
 	}
 	/**
@@ -511,8 +652,10 @@ class BootMenu extends FOGBase
 				$this->delConf();
 			else if ($_REQUEST['keyreg'])
 				$this->keyreg();
-			else if ($_REQUEST['qihost'])
+			else if ($_REQUEST['qihost'] && !$_REQUEST['imageID'])
 				$this->setTasking();
+			else if ($_REQUEST['qihost'] && $_REQUEST['imageID'])
+				$this->setTasking($_REQUEST['imageID']);
 			else if ($_REQUEST['sessionJoin'])
 				$this->sessjoin();
 			else if ($_REQUEST['approveHost'])
@@ -547,23 +690,40 @@ class BootMenu extends FOGBase
 	* If quick image tasking requested, this sets up the tasking.
 	* @return void
 	*/
-	public function setTasking()
+	public function setTasking($imgID = '')
 	{
-		if ($this->Host->getImage()->isValid())
+		if (!$imgID)
+			$this->printImageList();
+		if ($imgID)
 		{
-			if($this->Host->createImagePackage(1,'AutoRegTask',false,false,true,false,'ipxe'))
-				$this->chainBoot(false, true);
-		}
-		else
-		{
-			$Send['invalidimage'] = array(
-				'#!ipxe',
-				'echo Host has no image assigned to it',
-				'echo Please set one in the GUI',
-				'sleep 3',
-			);
-			$this->parseMe($Send);
-			$this->chainBoot();
+			$Image = new Image($imgID);
+			if ($this->Host && $this->Host->isValid())
+			{
+				if (!$this->Host->getImage() || !$this->Host->getImage()->isValid())
+					$this->Host->set('imageID',$imgID);
+				if ($imgID && $this->Host->getImage() && $this->Host->getImage()->isValid() && $imgID != $this->Host->getImage()->get('id'))
+					$this->Host->set('imageID',$imgID);
+				if ($this->Host->getImage()->isValid())
+				{
+					try
+					{
+						if($this->Host->createImagePackage(1,'AutoRegTask',false,false,true,false,$_REQUEST['username']))
+							$this->chainBoot(false, true);
+					}
+					catch (Exception $e)
+					{
+						$Send['fail'] = array(
+							'#!ipxe',
+							'echo '.$e->getMessage(),
+							'sleep 3',
+						);
+						$this->parseMe($Send);
+					}
+				}
+			}
+			else
+				$this->falseTasking('',$Image);
+			$this->chainBoot(false,true);
 		}
 	}
 	/**
@@ -609,7 +769,7 @@ class BootMenu extends FOGBase
 				if ($MulticastSession && $MulticastSession->isValid())
 					$this->Host->set('imageID',$MulticastSession->get('image'));
 			}
-			$Image = $this->Host->getImage();
+			$Image = $Task->getImage();
 			$StorageGroup = $Image->getStorageGroup();
 			$StorageNode = $StorageGroup->getOptimalStorageNode();
 			$this->HookManager->processEvent('BOOT_TASK_NEW_SETTINGS',array('Host' => &$this->Host,'StorageNode' => &$StorageNode,'StorageGroup' => &$StorageGroup));
@@ -620,9 +780,9 @@ class BootMenu extends FOGBase
 			else
 				$mac = $_REQUEST['mac'];
 			$osid = $Image->get('osID');
-			$storage = in_array($TaskType->get('id'),$imagingTasks) ? sprintf('%s:/%s/%s',trim($StorageNode->get('ip')),trim($StorageNode->get('path'),'/'),($TaskType->isUpload() ? 'dev/' : '')) : null;
-			$clamav = in_array($TaskType->get('id'),array(21,22)) ? sprintf('%s:%s',trim($StorageNode->get('ip')),'/opt/fog/clamav') : null;
-			$storageip = in_array($TaskType->get('id'),$imagingTasks) ? $StorageNode->get('ip') : null;
+			$storage = in_array($TaskType->get('id'),$imagingTasks) ? sprintf('%s:/%s/%s',$this->FOGCore->resolveHostname(trim($StorageNode->get('ip'))),trim($StorageNode->get('path'),'/'),($TaskType->isUpload() ? 'dev/' : '')) : null;
+			$clamav = in_array($TaskType->get('id'),array(21,22)) ? sprintf('%s:%s',$this->FOGCore->resolveHostname(trim($StorageNode->get('ip'))),'/opt/fog/clamav') : null;
+			$storageip = in_array($TaskType->get('id'),$imagingTasks) ? $this->FOGCore->resolveHostname($StorageNode->get('ip')) : null;
 			$img = in_array($TaskType->get('id'),$imagingTasks) ? $Image->get('path') : null;
 			$imgFormat = in_array($TaskType->get('id'),$imagingTasks) ? $Image->get('format') : null;
 			$imgType = in_array($TaskType->get('id'),$imagingTasks) ? $Image->getImageType()->get('type') : null;
@@ -630,7 +790,7 @@ class BootMenu extends FOGBase
 			$imgid = in_array($TaskType->get('id'),$imagingTasks) ? $Image->get('id') : null;
 			$ftp = $this->FOGCore->resolveHostname($this->FOGCore->getSetting('FOG_TFTP_HOST'));
 			$chkdsk = $this->FOGCore->getSetting('FOG_DISABLE_CHKDSK') == 1 ? 0 : 1;
-			$PIGZ_COMP = $this->FOGCore->getSetting('FOG_PIGZ_COMP');
+			$PIGZ_COMP = $Image->get('compress') ? $Image->get('compress') : $this->FOGCore->getSetting('FOG_PIGZ_COMP');
 			$kernelArgsArray = array(
 				"mac=$mac",
 				"ftp=$ftp",
@@ -831,6 +991,9 @@ class BootMenu extends FOGBase
 		$Menus = $this->getClass('PXEMenuOptionsManager')->find('','','id');
 		$Send['head'] = array(
 			"#!ipxe",
+			'set fog-ip '.$this->FOGCore->getSetting('FOG_WEB_HOST'),
+			'set fog-webroot '.basename($this->FOGCore->getSetting('FOG_WEB_ROOT')),
+			'set boot-url http://${fog-ip}/${fog-webroot}',
 			"cpuid --ext 29 && set arch x86_64 || set arch i386",
 			"goto get_console",
 			":console_set",

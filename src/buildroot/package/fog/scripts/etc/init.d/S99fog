@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 #
 #
 # rc.single     This file is executed by init when it goes into runlevel
@@ -68,6 +68,5 @@ else
 	run="/bin/fog";
 	after=$afterActionTerm;
 fi
-ethtool -K eth0 tso off gso off
 $run;
 $after;

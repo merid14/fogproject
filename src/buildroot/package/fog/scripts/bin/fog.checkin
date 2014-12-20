@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 . /usr/share/fog/lib/funcs.sh
 RUN_CHKDSK="";
 HOSTNAME_EARLY="0";
@@ -44,7 +44,7 @@ else
 	method="NFS";
 fi
 debugPause;
-fdisk -l &> /tmp/fdisk-before;
+#fdisk -l &> /tmp/fdisk-before;
 echo "";
 dots "Checking Operating System"
 echo $osname;

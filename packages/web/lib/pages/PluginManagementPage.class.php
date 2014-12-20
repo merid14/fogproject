@@ -105,12 +105,12 @@ class PluginManagementPage extends FOGPage
 		foreach ((array)$Plugins->getPlugins() AS $Plugin)
 		{
 			$PluginMan = current($this->getClass('PluginManager')->find(array('name' => $Plugin->getName())));
-			if($Plugin->isActive() && !$Plugin->isInstalled())
+			if(($Plugin->isActive() && !$Plugin->isInstalled() && !$_REQUEST['plug_name']) || ($_REQUEST['plug_name'] && $_REQUEST['plug_name'] == $Plugin->getName()))
 			{
 				$this->data[] = array(
 					'name' => $Plugin->getName(),
 					'type' => 'install',
-					'encname' => md5($Plugin->getName()),
+					'encname' => md5($Plugin->getName()).'&plug_name='.$Plugin->getName(),
 					'location' => $Plugin->getPath(),
 					'desc' => $Plugin->getDesc(),
 					'icon' => $Plugin->getIcon(),
@@ -125,6 +125,14 @@ class PluginManagementPage extends FOGPage
 			'attributes' => &$this->attributes));
 		// Output
 		$this->render();
+		if ($_REQUEST['run'])
+		{
+			$runner = $Plugin->getRunInclude($_REQUEST['run']);
+			if (file_exists($runner) && $Plugin->isInstalled())
+				require_once($runner);
+			else
+				$this->run();
+		}
 	}
 	public function installed()
 	{
@@ -134,7 +142,7 @@ class PluginManagementPage extends FOGPage
 		foreach ((array)$Plugins->getPlugins() AS $Plugin)
 		{
 			$PluginMan = current($this->getClass('PluginManager')->find(array('name' => $Plugin->getName())));
-			if($Plugin->isActive())
+			if($Plugin->isActive() && $Plugin->isInstalled())
 			{
 				$this->data[] = array(
 					'name' => $Plugin->getName(),
@@ -264,7 +272,7 @@ class PluginManagementPage extends FOGPage
 					'${image_name}',
 					'${os_name}',
 					'${capone_key}',
-					'<input type="checkbox" name="kill" value="${capone_id}" onclick="this.form.submit()" class="delvid" id="rmcap${capone_id}"/><a href="#"><label for="rmcap${capone_id}"><span class="icon icon-kill" title="'._('Remove Association').'"></span></label></a>',
+					'<input type="checkbox" name="kill" value="${capone_id}" class="delid" onclick="this.form.submit()" id="rmcap${capone_id}" /><label for="rmcap${capone_id}" class="icon icon-hand" title="'._('Delete').'">&nbsp;</label>',
 				);
 				$this->attributes = array(
 					array(),
@@ -308,6 +316,10 @@ class PluginManagementPage extends FOGPage
 			$this->FOGCore->redirect('?node='.$_REQUEST['node'].'&sub='.$_REQUEST['sub'].'&run='.$_REQUEST['run']);
 		}
 	}
+	public function install_post()
+	{
+		$this->installed_post();
+	}
 	public function installed_post()
 	{
 		$plugin = unserialize($_SESSION['fogactiveplugin']);
@@ -325,6 +337,8 @@ class PluginManagementPage extends FOGPage
 			}
 			else
 				$this->FOGCore->setMessage(_('Failed to install Plugin!'));
+			if ($_REQUEST['sub'] == 'install')
+				$_REQUEST['sub'] = 'installed';
 			$this->FOGCore->redirect('?node='.$_REQUEST['node'].'&sub='.$_REQUEST['sub'].'&run='.$_REQUEST['run']);
 		}
 		if ($_REQUEST['basics'])
@@ -360,7 +374,7 @@ class PluginManagementPage extends FOGPage
 				if ($Plugin->destroy())
 				{
 					$this->FOGCore->setMessage('Plugin Removed');
-					$this->FOGCore->redirect('?node=plugin&sub=installed');
+					$this->FOGCore->redirect('?node='.$_REQUEST['node'].'&sub=activate');
 				}
 			}
 		}

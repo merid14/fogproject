@@ -237,8 +237,6 @@ class GroupManagementPage extends FOGPage
 	{
 		// Find
 		$Group = new Group($_REQUEST['id']);
-		// If location is installed.
-		$LocPluginInst = current($this->getClass('PluginManager')->find(array('name' => 'location','installed' => 1)));
 		// If all hosts have the same image setup up the selection.
 		foreach ((array)$Group->get('hosts') AS $Host)
 		{
@@ -250,25 +248,9 @@ class GroupManagementPage extends FOGPage
 		}
 		$imageIDMult = (is_array($imageID) ? array_unique($imageID) : $imageID);
 		$groupKeyMult = (is_array($groupKey) ? array_unique($groupKey) : $groupKey);
-		$groupKeyMult = array_filter($groupKeyMult);
+		$groupKeyMult = array_filter((array)$groupKeyMult);
 		if (count($imageIDMult) == 1)
 			$imageMatchID = $Host && $Host->isValid() ? $Host->getImage()->get('id') : '';
-		// For the location plugin.  If all have the same location, setup the selection to let people know.
-		if ($LocPluginInst)
-		{
-			// To set the location similar to the rest of the groups.
-			foreach ((array)$Group->get('hosts') AS $Host)
-			{
-				if ($Host && $Host->isValid())
-				{
-					$LA = current($this->getClass('LocationAssociationManager')->find(array('hostID' => $Host->get('id'))));
-					$LA ? $locationID[] = $LA->get('locationID') : null;
-				}
-			}
-			$locationIDMult = (is_array($locationID) ? array_unique($locationID) : $locationID);
-			if (count($locationIDMult) == 1)
-				$locationMatchID = $LA && $LA->isValid() ? $LA->get('locationID') : null;
-		}
 		// Title - set title for page title in window
 		$this->title = sprintf('%s: %s', _('Edit'), $Group->get('name'));
 		// Headerdata
@@ -287,12 +269,12 @@ class GroupManagementPage extends FOGPage
 			_('Group Name') => '<input type="text" name="name" value="${group_name}" />',
 			_('Group Description') => '<textarea name="description" rows="8" cols="40">${group_desc}</textarea>',
 			_('Group Product Key') => '<input id="productKey" type="text" name="key" value="${group_key}" />',
-			($LocPluginInst ? _('Group Location') : null) => ($LocPluginInst ? $this->getClass('LocationManager')->buildSelectBox($locationMatchID) : null),
 			_('Group Kernel') => '<input type="text" name="kern" value="${group_kern}" />',
 			_('Group Kernel Arguments') => '<input type="text" name="args" value="${group_args}" />',
 			_('Group Primary Disk') => '<input type="text" name="dev" value="${group_devs}" />',
 			'<input type="hidden" name="updategroup" value="1" />' => '<input type="submit" value="'._('Update').'" />',
 		);
+		$this->HookManager->processEvent('GROUP_FIELDS',array('fields' => &$fields,'Group' => &$Group));
 		print "\n\t\t".'<form method="post" action="'.$this->formAction.'&tab=group-general">';
 		print "\n\t\t\t".'<input type="hidden" name="'.$this->id.'" value="'.$_REQUEST['id'].'" />';
 		print "\n\t\t\t".'<div id="tab-container">';
@@ -327,7 +309,6 @@ class GroupManagementPage extends FOGPage
 		$this->headerData = array(
 			'',
 			'<input type="checkbox" name="toggle-checkboxgroup1" class="toggle-checkbox1" />',
-			($_SESSION['FOGPingActive'] ? '' : null),
 			_('Host Name'),
 			_('Image'),
 		);
@@ -335,7 +316,6 @@ class GroupManagementPage extends FOGPage
 		$this->templates = array(
 			'<span class="icon icon-help hand" title="${host_desc}"></span>',
 			'<input type="checkbox" name="host[]" value="${host_id}" class="toggle-host${check_num}" />',
-			($_SESSION['FOGPingActive'] ? '<span class="icon ping"></span>' : ''),
 			'<a href="?node=host&sub=edit&id=${host_id}" title="Edit: ${host_name} Was last deployed: ${deployed}">${host_name}</a><br /><small>${host_mac}</small>',
 			'${image_name}',
 		);
@@ -343,7 +323,6 @@ class GroupManagementPage extends FOGPage
 		$this->attributes = array(
 			array('width' => 22, 'id' => 'host-${host_name}'),
 			array('class' => 'c', 'width' => 16),
-			($_SESSION['FOGPingActive'] ? array('width' => 20) : ''),
 			array(),
 			array(),
 		);
@@ -407,7 +386,6 @@ class GroupManagementPage extends FOGPage
 		$this->headerData = array(
 			'',
 			'<input type="checkbox" name="toggle-checkboxgroup2" class="toggle-checkbox2" />',
-			($_SESSION['FOGPingActive'] ? '' : null),
 			_('Host Name'),
 			_('Image'),
 		);
@@ -459,7 +437,7 @@ class GroupManagementPage extends FOGPage
 		$this->templates = array(
 			'<a href="?node=host&sub=edit&id=${host_id}" title="Edit: ${host_name} Was last deployed: ${deployed}">${host_name}</a><br /><small>${host_mac}</small>',
 			'<small>${deployed}</small>',
-			'<input type="checkbox" name="member" value="${host_id}" class="delid" onclick="this.form.submit()" id="memberdel${host_id}" /><label for="memberdel${host_id}">Delete</label>',
+			'<input type="checkbox" name="member" value="${host_id}" class="delid" onclick="this.form.submit()" id="memberdel${host_id}" /><label for="memberdel${host_id}" class="icon icon-hand" title="'._('Delete').'">&nbsp;</label>',
 			'<small>${image_name}</small>',
 		);
 		foreach ((array)$Group->get('hosts') AS $Host)
@@ -741,7 +719,7 @@ class GroupManagementPage extends FOGPage
 		// Create Template for Printers:
 		$this->templates = array(
 			'<input type="checkbox" name="prntadd[]" value="${printer_id}" class="toggle-print" />',
-			'<input class="default" type="radio" name="default" id="printer${printer_id}" value="${printer_id}" /><label for="printer${printer_id}"></label><input type="hidden" name="printerid[]" />',
+			'<input class="default" type="radio" name="default" id="printer${printer_id}" value="${printer_id}" /><label for="printer${printer_id}" class="icon icon-hand" title="'._('Default Printer Selector').'">&nbsp;</label><input type="hidden" name="printerid[]" />',
 			'<a href="?node=printer&sub=edit&id=${printer_id}">${printer_name}</a>',
 			'${printer_type}',
 		);
@@ -843,31 +821,15 @@ class GroupManagementPage extends FOGPage
 								->set('kernel',		$_REQUEST['kern'])
 								->set('kernelArgs',	$_REQUEST['args'])
 								->set('kernelDevice',	$_REQUEST['dev']);
-								foreach((array)$Group->get('hosts') AS $Host)
-								{
-									if ($Host && $Host->isValid())
-									{
-										$Host->set('kernel',		$_REQUEST['kern'])
-											 ->set('kernelArgs',	$_REQUEST['args'])
-											 ->set('kernelDevice',	$_REQUEST['dev'])
-											 ->set('productKey', $_REQUEST['key'])
-											 ->save();
-									}
-								}
-						// Sets the location for the group.
-						$Location = new Location($_REQUEST['location']);
-						foreach ((array)$Group->get('hosts') AS $Host)
+						foreach((array)$Group->get('hosts') AS $Host)
 						{
 							if ($Host && $Host->isValid())
 							{
-								// Remove all associations
-								$this->getClass('LocationAssociationManager')->destroy(array('hostID' => $Host->get('id')));
-								// Create new association
-								$LA = new LocationAssociation(array(
-									'locationID' => $Location->get('id'),
-									'hostID' => $Host->get('id'),
-								));
-								$LA->save();
+								$Host->set('kernel',		$_REQUEST['kern'])
+									 ->set('kernelArgs',	$_REQUEST['args'])
+									 ->set('kernelDevice',	$_REQUEST['dev'])
+									 ->set('productKey', $_REQUEST['key'])
+									 ->save();
 							}
 						}
 					}
@@ -954,7 +916,7 @@ class GroupManagementPage extends FOGPage
 			if ($Group->save())
 			{
 				// Hook
-				$this->HookManager->processEvent('GROUP_EDIT_SUCCESS', array('host' => &$Group));
+				$this->HookManager->processEvent('GROUP_EDIT_SUCCESS', array('Group' => &$Group));
 				// Log History event
 				$this->FOGCore->logHistory(sprintf('Group updated: ID: %s, Name: %s', $Group->get('id'), $Group->get('name')));
 				// Set session message

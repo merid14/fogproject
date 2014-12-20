@@ -84,7 +84,7 @@ class ReportManagementPage extends FOGPage
 			'${input}',
 		);
 		// Get the dates to use!
-		$ImagingLogs = $this->getClass('ImagingLogManager')->find();
+		$ImagingLogs = $this->getClass('ImagingLogManager')->find('','','','','',array('start','finish'));
 		foreach ((array)$ImagingLogs AS $ImagingLog)
 		{
 			$DateStart = $this->nice_date($ImagingLog->get('start'));
@@ -137,7 +137,7 @@ class ReportManagementPage extends FOGPage
 		// Set title
 		$this->title = _('FOG Imaging Log');
 		// This gets the download links for which type of file you want.
-		print "\n\t\t\t\t<h2>".'<a href="export.php?type=csv" alt="Export CSV" title="Export CSV" target="_blank"><img class="noBorder" src="images/csv.png" /></a> <a href="export.php?type=pdf" alt="Export PDF" title="Export PDF" target="_blank"><img class="noBorder" src="images/pdf.png" /></a></h2>';
+		print "\n\t\t\t\t<h2>".'<a href="export.php?type=csv&filename=ImagingLog" alt="Export CSV" title="Export CSV" target="_blank"><img class="noBorder" src="images/csv.png" /></a> <a href="export.php?type=pdf&filename=ImagingLog" alt="Export PDF" title="Export PDF" target="_blank"><img class="noBorder" src="images/pdf.png" /></a></h2>';
 		// Header Data
 		$this->headerData = array(
 			_('Engineer'),
@@ -170,6 +170,7 @@ class ReportManagementPage extends FOGPage
 			$date1 = $_REQUEST['date2'];
 			$date2 = $_REQUEST['date1'];
 		}
+		$date2 = date('Y-m-d',strtotime($date2.'+1 day'));
 		// This is just for the header in the CSV:
 		$csvHead = array(
 			_('Engineer'),
@@ -189,7 +190,7 @@ class ReportManagementPage extends FOGPage
 		foreach((array)$csvHead AS $csvHeader)
 			$ReportMaker->addCSVCell($csvHeader);
 		$ReportMaker->endCSVLine();
-		$ImagingLogs = $this->getClass('ImagingLogManager')->find();
+		$ImagingLogs = $this->getClass('ImagingLogManager')->find(array('start' => '','finish' => ''),'OR','','',"BETWEEN '$date1' AND '$date2'");
 		foreach((array)$ImagingLogs AS $ImagingLog)
 		{
 			$start = $this->nice_date($ImagingLog->get('start'));
@@ -200,56 +201,53 @@ class ReportManagementPage extends FOGPage
 			$Task = current($this->getClass('TaskManager')->find(array('checkInTime' => $ImagingLog->get('start'), 'hostID' => $ImagingLog->get('hostID'))));
 			// Find the image if it still exists.
 			$Image = current($this->getClass('ImageManager')->find(array('name' => $ImagingLog->get('image'))));
-			if(($start->format('Y-m-d') >= $date1 && $start->format('Y-m-d') <= $date2) || ($end->format('Y-m-d') >= $date1 && $end->format('Y-m-d') <= $date2) && ($start->format('H:i:s') < $end->format('H:i:s')))
+			// Verify if the dates are valid
+			$checkStart = $this->validDate($start);
+			$checkEnd = $this->validDate($end);
+			// Store the difference
+			$diff = $this->diff($start,$end);
+			$createdBy = ($Task && $Task->isValid() ? $Task->get('createdBy') : $this->FOGUser->get('name'));
+			$hostName = ($Host && $Host->isValid() ? $Host->get('name') : '');
+			$hostId = ($Host && $Host->isValid() ? $Host->get('id') : $ImagingLog->get('hostID'));
+			$hostMac = ($Host && $Host->isValid() ? $Host->get('mac') : '');
+			$hostDesc = ($Host && $Host->isValid() ? $Host->get('description') : '');
+			$imgName = ($Image && $Image->isValid() ? $Image->get('name') : $ImagingLog->get('image'));
+			$imgPath = ($Image && $Image->isValid() ? $Image->get('path') : '');
+			$imgType = ($ImagingLog->get('type') == 'down' ? _('Download') : _('Upload'));
+			// For the html report (PDF)
+			if ($checkStart && $checkEnd)
 			{
-				// Verify if the dates are valid
-				$checkStart = $this->validDate($Date);
-				$checkEnd = $this->validDate($Date);
-				// Store the difference
-				$diff = $this->diff($start,$end);
-				$createdBy = ($Task && $Task->isValid() ? $Task->get('createdBy') : $this->FOGUser->get('name'));
-				$hostName = ($Host && $Host->isValid() ? $Host->get('name') : '');
-				$hostId = ($Host && $Host->isValid() ? $Host->get('id') : $ImagingLog->get('hostID'));
-				$hostMac = ($Host && $Host->isValid() ? $Host->get('mac') : '');
-				$hostDesc = ($Host && $Host->isValid() ? $Host->get('description') : '');
-				$imgName = ($Image && $Image->isValid() ? $Image->get('name') : $ImagingLog->get('image'));
-				$imgPath = ($Image && $Image->isValid() ? $Image->get('path') : '');
-				$imgType = ($ImagingLog->get('type') == 'down' ? _('Download') : _('Upload'));
-				// For the html report (PDF)
-				if ($checkStart && $checkEnd)
-				{
-					$this->data[] = array(
-						'createdBy' => $createdBy,
-						'host_name' => $hostName,
-						'start_date' => $start->format('Y-m-d'),
-						'start_time' => $start->format('H:i:s'),
-						'end_date' => $end->format('Y-m-d'),
-						'end_time' => $end->format('H:i:s'),
-						'duration' => $diff,
-						'image_name' => $ImagingLog->get('image'),
-						'type' => $imgType,
-					);
-					// For the CSV
-					$ReportMaker->addCSVCell($createdBy);
-					$ReportMaker->addCSVCell($hostId);
-					$ReportMaker->addCSVCell($hostName);
-					$ReportMaker->addCSVCell($hostMac);
-					$ReportMaker->addCSVCell($hostDesc);
-					$ReportMaker->addCSVCell($imgName);
-					$ReportMaker->addCSVCell($imgPath);
-					$ReportMaker->addCSVCell($start->format('Y-m-d'));
-					$ReportMaker->addCSVCell($start->format('H:i:s'));
-					$ReportMaker->addCSVCell($end->format('Y-m-d'));
-					$ReportMaker->addCSVCell($end->format('H:i:s'));
-					$ReportMaker->addCSVCell($diff);
-					$ReportMaker->addCSVCell($imgType);
-					$ReportMaker->endCSVLine();
-				}
+				$this->data[] = array(
+					'createdBy' => $createdBy,
+					'host_name' => $hostName,
+					'start_date' => $start->format('Y-m-d'),
+					'start_time' => $start->format('H:i:s'),
+					'end_date' => $end->format('Y-m-d'),
+					'end_time' => $end->format('H:i:s'),
+					'duration' => $diff,
+					'image_name' => $ImagingLog->get('image'),
+					'type' => $imgType,
+				);
+				// For the CSV
+				$ReportMaker->addCSVCell($createdBy);
+				$ReportMaker->addCSVCell($hostId);
+				$ReportMaker->addCSVCell($hostName);
+				$ReportMaker->addCSVCell($hostMac);
+				$ReportMaker->addCSVCell($hostDesc);
+				$ReportMaker->addCSVCell($imgName);
+				$ReportMaker->addCSVCell($imgPath);
+				$ReportMaker->addCSVCell($start->format('Y-m-d'));
+				$ReportMaker->addCSVCell($start->format('H:i:s'));
+				$ReportMaker->addCSVCell($end->format('Y-m-d'));
+				$ReportMaker->addCSVCell($end->format('H:i:s'));
+				$ReportMaker->addCSVCell($diff);
+				$ReportMaker->addCSVCell($imgType);
+				$ReportMaker->endCSVLine();
 			}
 		}
 		// This is for the pdf.
 		$ReportMaker->appendHTML($this->process());
-		$this->render();
+		$ReportMaker->outputReport(0);
 		$_SESSION['foglastreport'] = serialize($ReportMaker);
 	}
 	/** host_list()
@@ -262,7 +260,7 @@ class ReportManagementPage extends FOGPage
 		// Set Title
 		$this->title = _('Host Listing Export');
 		// This gets the download links for which type of file you want.
-		print "\n\t\t\t\t<h2>".'<a href="export.php?type=csv" alt="Export CSV" title="Export CSV" target="_blank"><img class="noBorder" src="images/csv.png" /></a> <a href="export.php?type=pdf" alt="Export PDF" title="Export PDF" target="_blank"><img class="noBorder" src="images/pdf.png" /></a></h2>';
+		print "\n\t\t\t\t<h2>".'<a href="export.php?type=csv&filename=HostList" alt="Export CSV" title="Export CSV" target="_blank"><img class="noBorder" src="images/csv.png" /></a> <a href="export.php?type=pdf&filename=HostList" alt="Export PDF" title="Export PDF" target="_blank"><img class="noBorder" src="images/pdf.png" /></a></h2>';
 		// CSV Header row:
 		$csvHead = array(
 			_('Host ID') => 'id',
@@ -334,7 +332,7 @@ class ReportManagementPage extends FOGPage
 		}
 		// This is for the pdf.
 		$ReportMaker->appendHTML($this->process());
-		$this->render();
+		$ReportMaker->outputReport(0);
 		$_SESSION['foglastreport'] = serialize($ReportMaker);
 	}
 	/** inventory()
@@ -347,7 +345,7 @@ class ReportManagementPage extends FOGPage
 		// Set Title
 		$this->title = _('Full Inventory Export');
 		// This gets the download links for which type of file you want.
-		print "\n\t\t\t\t<h2>".'<a href="export.php?type=csv" alt="Export CSV" title="Export CSV" target="_blank"><img class="noBorder" src="images/csv.png" /></a> <a href="export.php?type=pdf" alt="Export PDF" title="Export PDF" target="_blank"><img class="noBorder" src="images/pdf.png" /></a></h2>';
+		print "\n\t\t\t\t<h2>".'<a href="export.php?type=csv&filename=InventoryReport" alt="Export CSV" title="Export CSV" target="_blank"><img class="noBorder" src="images/csv.png" /></a> <a href="export.php?type=pdf&filename=InventoryReport" alt="Export PDF" title="Export PDF" target="_blank"><img class="noBorder" src="images/pdf.png" /></a></h2>';
 		$csvHead = array(
 			_('Host ID') => 'id',
 			_('Host name') => 'name',
@@ -420,54 +418,57 @@ class ReportManagementPage extends FOGPage
 		// Loop through each of the hosts.
 		foreach((array)$Hosts AS $Host)
 		{
-			// Find the image information
-			if ($Host->get('imageID'))
-				$Image = $Host->getImage();
-			// Find the os information if image is set.
-			if ($Image && $Image->isValid() && $Image->getOS())
-				$OS = $Image->getOS();
-			// Find the current inventory for this host
-			$Inventory = current($this->getClass('InventoryManager')->find(array('hostID' => $Host->get('id'))));
-			// If found print data
-			if($Inventory)
+			if ($Host && $Host->isValid())
 			{
-				$this->data[] = array(
-					'host_name' => $Host->get('name'),
-					'host_mac' => $Host->get('mac'),
-					'os_name' => $OS && $OS->isValid()  ? $OS->get('name') : '',
-					'memory' => $Inventory->getMem(),
-					'sysprod' => $Inventory->get('sysproduct'),
-					'sysser' => $Inventory->get('sysserial'),
-				);
-				foreach((array)$csvHead AS $head => $classGet)
+				// Find the image information
+				if ($Host->get('imageID'))
+					$Image = $Host->getImage();
+				// Find the os information if image is set.
+				if ($Image && $Image->isValid() && $Image->getOS())
+					$OS = $Image->getOS();
+				// Find the current inventory for this host
+				$Inventory = $Host->get('inventory');
+				// If found print data
+				if($Inventory)
 				{
-					if ($head == _('Host ID'))
-						$ReportMaker->addCSVCell($Host->get('id'));
-					else if ($head == _('Host name'))
-						$ReportMaker->addCSVCell($Host->get('name'));
-					else if ($head == _('Host MAC'))
-						$ReportMaker->addCSVCell($Host->get('mac'));
-					else if ($head == _('Host Desc'))
-						$ReportMaker->addCSVCell($Host->get('description'));
-					else if ($head == _('Image ID'))
-						$ReportMaker->addCSVCell($Image && $Image->isValid() ? $Image->get('id') : '');
-					else if ($head == _('Image Name'))
-						$ReportMaker->addCSVCell($Image && $Image->isValid() ? $Image->get('name') : '');
-					else if ($head == _('Image Desc'))
-						$ReportMaker->addCSVCell($Image && $Image->isValid() ? $Image->get('description') : '');
-					else if ($head == _('OS Name'))
-						$ReportMaker->addCSVCell($OS && $OS->isValid() ? $OS->get('name') : '');
-					else if ($head == _('Memory'))
-						$ReportMaker->addCSVCell($Inventory->getMem());
-					else
-						$ReportMaker->addCSVCell($Inventory->get($classGet));
+					$this->data[] = array(
+						'host_name' => $Host->get('name'),
+						'host_mac' => $Host->get('mac'),
+						'os_name' => $OS && $OS->isValid()  ? $OS->get('name') : '',
+						'memory' => $Inventory->getMem(),
+						'sysprod' => $Inventory->get('sysproduct'),
+						'sysser' => $Inventory->get('sysserial'),
+					);
+					foreach((array)$csvHead AS $head => $classGet)
+					{
+						if ($head == _('Host ID'))
+							$ReportMaker->addCSVCell($Host->get('id'));
+						else if ($head == _('Host name'))
+							$ReportMaker->addCSVCell($Host->get('name'));
+						else if ($head == _('Host MAC'))
+							$ReportMaker->addCSVCell($Host->get('mac'));
+						else if ($head == _('Host Desc'))
+							$ReportMaker->addCSVCell($Host->get('description'));
+						else if ($head == _('Image ID'))
+							$ReportMaker->addCSVCell($Image && $Image->isValid() ? $Image->get('id') : '');
+						else if ($head == _('Image Name'))
+							$ReportMaker->addCSVCell($Image && $Image->isValid() ? $Image->get('name') : '');
+						else if ($head == _('Image Desc'))
+							$ReportMaker->addCSVCell($Image && $Image->isValid() ? $Image->get('description') : '');
+						else if ($head == _('OS Name'))
+							$ReportMaker->addCSVCell($OS && $OS->isValid() ? $OS->get('name') : '');
+						else if ($head == _('Memory'))
+							$ReportMaker->addCSVCell($Inventory->getMem());
+						else
+							$ReportMaker->addCSVCell($Inventory->get($classGet));
+					}
+					$ReportMaker->endCSVLine();
 				}
-				$ReportMaker->endCSVLine();
 			}
 		}
 		// This is for the pdf.
 		$ReportMaker->appendHTML($this->process());
-		$this->render();
+		$ReportMaker->outputReport(0);
 		$_SESSION['foglastreport'] = serialize($ReportMaker);
 	}
 	/** pend_mac()
@@ -498,7 +499,7 @@ class ReportManagementPage extends FOGPage
 		// Set Title
 		$this->title = _('Pending MAC Export');
 		// This gets the download links for which type of file you want.
-		print "\n\t\t\t\t<h2>".'<a href="export.php?type=csv" alt="Export CSV" title="Export CSV" target="_blank"><img class="noBorder" src="images/csv.png" /></a> <a href="export.php?type=pdf" alt="Export PDF" title="Export PDF" target="_blank"><img class="noBorder" src="images/pdf.png" /></a><br /><a href="?node=report&sub=pend-mac&aprvall=1">'._('Approve All Pending MACs for all hosts?').'</a></h2>';
+		print "\n\t\t\t\t<h2>".'<a href="export.php?type=csv&filename=PendingMACsList" alt="Export CSV" title="Export CSV" target="_blank"><img class="noBorder" src="images/csv.png" /></a> <a href="export.php?type=pdf&filename=PendingMACsList" alt="Export PDF" title="Export PDF" target="_blank"><img class="noBorder" src="images/pdf.png" /></a><br /><a href="?node=report&sub=pend-mac&aprvall=1">'._('Approve All Pending MACs for all hosts?').'</a></h2>';
 		// CSV Header
 		$csvHead = array(
 			_('Host ID'),
@@ -548,7 +549,7 @@ class ReportManagementPage extends FOGPage
 		}
 		// This is for the pdf.
 		$ReportMaker->appendHTML($this->process());
-		$this->render();
+		$ReportMaker->outputReport(0);
 		$_SESSION['foglastreport'] = serialize($ReportMaker);
 	}
 	/** vir_hist()
@@ -561,7 +562,7 @@ class ReportManagementPage extends FOGPage
 		// Set Title
 		$this->title = _('FOG Virus Summary');
 		// This gets the download links for which type of file you want.
-		print "\n\t\t\t\t<h2>".'<a href="export.php?type=csv" alt="Export CSV" title="Export CSV" target="_blank"><img class="noBorder" src="images/csv.png" /></a> <a href="export.php?type=pdf" alt="Export PDF" title="Export PDF" target="_blank"><img class="noBorder" src="images/pdf.png" /></a></h2>';
+		print "\n\t\t\t\t<h2>".'<a href="export.php?type=csv&filename=VirusHistory" alt="Export CSV" title="Export CSV" target="_blank"><img class="noBorder" src="images/csv.png" /></a> <a href="export.php?type=pdf&filename=VirusHistory" alt="Export PDF" title="Export PDF" target="_blank"><img class="noBorder" src="images/pdf.png" /></a></h2>';
 		print "\n\t\t\t\t".'<form method="post" action="'.$this->formAction.'" />';
 		print "\n\t\t\t\t<h2>".'<a href="#"><input onclick="this.form.submit()" type="checkbox" class="delvid" name="delvall" id="delvid" value="all" /><label for="delvid">('._('clear all history').')</label></a></h2>';
 		print "\n\t\t\t\t".'</form>';
@@ -587,7 +588,7 @@ class ReportManagementPage extends FOGPage
 			'${vir_file}',
 			'${vir_mode}',
 			'${vir_date}',
-			'<input type="checkbox" onclick="this.form.submit()" class="delvid" value="${vir_id}" id="vir${vir_id}" name="delvid" /><label for="vir${vir_id}" title="Delete ${vir_name}"><img src="images/deleteSmall.png" class="link" /></label>',
+			'<input type="checkbox" onclick="this.form.submit()" class="delvid" value="${vir_id}" id="vir${vir_id}" name="delvid" /><label for="vir${vir_id}" class="icon icon-hand" title="'._('Delete').' ${vir_name}"><img src="images/deleteSmall.png" class="link" /></label>',
 		);
 		$this->attributes = array(
 			array(),
@@ -627,7 +628,7 @@ class ReportManagementPage extends FOGPage
 		// This is for the pdf.
 		$ReportMaker->appendHTML($this->process());
 		print "\n\t\t\t".'<form method="post" action="'.$this->formAction.'">';
-		$this->render();
+		$ReportMaker->outputReport(0);
 		print '</form>';
 		$_SESSION['foglastreport'] = serialize($ReportMaker);
 	}
@@ -676,8 +677,8 @@ class ReportManagementPage extends FOGPage
 			_('Enter a hostname to search for') => '${host_sel}',
 			'&nbsp;' => '<input type="submit" value="'._('Search').'" />',
 		);
-		$Users = $this->getClass('UserTrackingManager')->find();
-		$Hosts = $this->getClass('HostManager')->find();
+		$Users = $this->getClass('UserTrackingManager')->find('','','','','','username');
+		$Hosts = $this->getClass('HostManager')->find('','','','','','name');
 		foreach((array)$Hosts AS $Host)
 			$HostNames[] = $Host->get('name');
 		foreach((array)$Users AS $User)
@@ -908,7 +909,7 @@ class ReportManagementPage extends FOGPage
 		$ReportMaker->addCSVCell(_('Description'));
 		$ReportMaker->endCSVLine();
 		// This gets the download links for which type of file you want.
-		print "\n\t\t\t\t<h2>".'<a href="export.php?type=csv" alt="Export CSV" title="Export CSV" target="_blank"><img class="noBorder" src="images/csv.png" /></a> <a href="export.php?type=pdf" alt="Export PDF" title="Export PDF" target="_blank"><img class="noBorder" src="images/pdf.png" /></a></h2>';
+		print "\n\t\t\t\t<h2>".'<a href="export.php?type=csv&filename=UserTrackingList" alt="Export CSV" title="Export CSV" target="_blank"><img class="noBorder" src="images/csv.png" /></a> <a href="export.php?type=pdf&filename=UserTrackingList" alt="Export PDF" title="Export PDF" target="_blank"><img class="noBorder" src="images/pdf.png" /></a></h2>';
 		// Set dates and check order is proper
 		$date1 = $_REQUEST['date1'];
 		$date2 = $_REQUEST['date2'];
@@ -917,35 +918,38 @@ class ReportManagementPage extends FOGPage
 			$date1 = $_REQUEST['date2'];
 			$date2 = $_REQUEST['date1'];
 		}
+		$date2 = date('Y-m-d',strtotime($date2.'+1 day'));
 		// Get all the User Trackers Based on info found.
-		$UserTrackers = $this->getClass('UserTrackingManager')->find(array('username' => base64_decode($_REQUEST['userID']),'hostID' => $_REQUEST['hostID'] ? $_REQUEST['hostID'] : '%'));
+		$UserTracker = new UserTracking();
+		$UserToSearch = base64_decode($_REQUEST['userID']);
+		$compare = "BETWEEN '$date1' AND '$date2' AND ".$UserTracker->databaseFields['username'].(preg_match('#%#',$UserToSearch) ? " LIKE '$UserToSearch'" : "='$UserToSearch'");
+		if ($_REQUEST['hostID'])
+			$compare .= ' AND '.$UserTracker->databaseFields['hostID']."='".$_REQUEST['hostID']."'";;
+		$UserTrackers = $this->getClass('UserTrackingManager')->find(array('datetime' => ''),'','','',$compare);
 		foreach((array)$UserTrackers AS $User)
 		{
 			$date = $this->nice_date($User->get('datetime'));
-			if ($date->format('Y-m-d') >= $date1 && $date->format('Y-m-d') <= $date2)
-			{
-				$logintext = ($User->get('action') == 1 ? 'Login' : ($User->get('action') == 0 ? 'Logout' : ($User->get('action') == 99 ? 'Service Start' : 'N/A')));
-				$Host = current($this->getClass('HostManager')->find(array('id' => $User->get('hostID'))));
-				$this->data[] = array(
-					'action' => $logintext,
-					'username' => $User->get('username'),
-					'hostname' => $Host && $Host->isValid() ? $Host->get('name') : '',
-					'time' => $this->FOGCore->formatTime($User->get('datetime')),
-					'desc' => $User->get('description'),
-				);
-				$ReportMaker->addCSVCell($logintext);
-				$ReportMaker->addCSVCell($User->get('username'));
-				$ReportMaker->addCSVCell($Host && $Host->isValid() ? $Host->get('name') : '');
-				$ReportMaker->addCSVCell($Host && $Host->isValid() ? $Host->get('mac') : '');
-				$ReportMaker->addCSVCell($Host && $Host->isValid() ? $Host->get('description') : '');
-				$ReportMaker->addCSVCell($this->FOGCore->formatTime($User->get('datetime')));
-				$ReportMaker->addCSVCell($User->get('description'));
-				$ReportMaker->endCSVLine();
-			}
+			$logintext = ($User->get('action') == 1 ? 'Login' : ($User->get('action') == 0 ? 'Logout' : ($User->get('action') == 99 ? 'Service Start' : 'N/A')));
+			$Host = current($this->getClass('HostManager')->find(array('id' => $User->get('hostID'))));
+			$this->data[] = array(
+				'action' => $logintext,
+				'username' => $User->get('username'),
+				'hostname' => $Host && $Host->isValid() ? $Host->get('name') : '',
+				'time' => $this->FOGCore->formatTime($User->get('datetime')),
+				'desc' => $User->get('description'),
+			);
+			$ReportMaker->addCSVCell($logintext);
+			$ReportMaker->addCSVCell($User->get('username'));
+			$ReportMaker->addCSVCell($Host && $Host->isValid() ? $Host->get('name') : '');
+			$ReportMaker->addCSVCell($Host && $Host->isValid() ? $Host->get('mac') : '');
+			$ReportMaker->addCSVCell($Host && $Host->isValid() ? $Host->get('description') : '');
+			$ReportMaker->addCSVCell($this->FOGCore->formatTime($User->get('datetime')));
+			$ReportMaker->addCSVCell($User->get('description'));
+			$ReportMaker->endCSVLine();
 		}
 		// This is for the pdf.
 		$ReportMaker->appendHTML($this->process());
-		$this->render();
+		$ReportMaker->outputReport(0);
 		$_SESSION['foglastreport'] = serialize($ReportMaker);
 	}
 	/** snapin_log()
@@ -1013,7 +1017,7 @@ class ReportManagementPage extends FOGPage
 		// Set title
 		$this->title = _('FOG Snapin Log');
 		// This gets the download links for which type of file you want.
-		print "\n\t\t\t\t<h2>".'<a href="export.php?type=csv" alt="Export CSV" title="Export CSV" target="_blank"><img class="noBorder" src="images/csv.png" /></a> <a href="export.php?type=pdf" alt="Export PDF" title="Export PDF" target="_blank"><img class="noBorder" src="images/pdf.png" /></a></h2>';
+		print "\n\t\t\t\t<h2>".'<a href="export.php?type=csv&filename=SnapinLog" alt="Export CSV" title="Export CSV" target="_blank"><img class="noBorder" src="images/csv.png" /></a> <a href="export.php?type=pdf&filename=SnapinLog" alt="Export PDF" title="Export PDF" target="_blank"><img class="noBorder" src="images/pdf.png" /></a></h2>';
 		// Header Data
 		$this->headerData = array(
 			_('Snapin Name'),
@@ -1042,6 +1046,7 @@ class ReportManagementPage extends FOGPage
 			$date1 = $_REQUEST['date2'];
 			$date2 = $_REQUEST['date1'];
 		}
+		$date2 = date('Y-m-d',strtotime($date2.'+1 day'));
 		// This is just for the header in the CSV:
 		$csvHead = array(
 			_('Host ID'),
@@ -1068,72 +1073,69 @@ class ReportManagementPage extends FOGPage
 			$ReportMaker->addCSVCell($csvHeader);
 		$ReportMaker->endCSVLine();
 		// Find all snapin tasks
-		$SnapinTasks = $this->getClass('SnapinTaskManager')->find();
+		$SnapinTasks = $this->getClass('SnapinTaskManager')->find(array('checkin' => '','complete' => ''),'OR','','',"BETWEEN '$date1' AND '$date2'");
 		foreach((array)$SnapinTasks AS $SnapinTask)
 		{
 			$SnapinCheckin1 = $this->nice_date($SnapinTask->get('checkin'));
 			$SnapinCheckin2 = $this->nice_date($SnapinTask->get('complete'));
 			// Get the Task based on create date thru complete date
-			if (($SnapinCheckin1->format('Y-m-d') >= $date1 && $SnapinCheckin1->format('Y-m-d') <= $date2) || ($SnapinCheckin2->format('Y-m-d') >= $date1 && $SnapinCheckin2->format('Y-m-d') <= $date2))
-			{
-				// Get the snapin
-				$Snapin = new Snapin($SnapinTask->get('snapinID'));
-				// Get the Job
-				$SnapinJob = new SnapinJob($SnapinTask->get('jobID'));
-				// Get the Host
-				$Host = new Host($SnapinJob->get('hostID'));
-				$hostID = $SnapinJob->get('hostID');
-				$hostName = $Host->isValid() ? $Host->get('name') : '';
-				$hostMac = $Host->isValid() ? $Host->get('mac') : '';
-				$snapinID = $SnapinTask->get('snapinID');
-				$snapinName = $Snapin->isValid() ? $Snapin->get('name') : '';
-				$snapinDesc = $Snapin->isValid() ? $Snapin->get('description') : '';
-				$snapinFile = $Snapin->isValid() ? $Snapin->get('file') : '';
-				$snapinArgs = $Snapin->isValid() ? $Snapin->get('args') : '';
-				$snapinRw = $Snapin->isValid() ? $Snapin->get('runWith') : '';
-				$snapinRwa = $Snapin->isValid() ? $Snapin->get('runWithArgs') : '';
-				$snapinState = $SnapinTask->get('stateID');
-				$snapinReturn = $SnapinTask->get('return');
-				$snapinDetail = $SnapinTask->get('detail');
-				$snapinCreateDate = $Snapin->isValid() ? $this->formatTime($Snapin->get('createdTime'),'Y-m-d') : '';
-				$snapinCreateTime = $Snapin->isValid() ? $this->formatTime($Snapin->get('createdTime'),'H:i:s') : '';
-				$jobCreateDate = $this->formatTime($SnapinJob->get('createdTime'),'Y-m-d');
-				$jobCreateTime = $this->formatTime($SnapinJob->get('createdTime'),'H:i:s');
-				$TaskCheckinDate = $SnapinCheckin1->format('Y-m-d');
-				$TaskCheckinTime = $SnapinCheckin2->format('H:i:s');
-				$this->data[] = array(
-					'snap_name' => $snapinName,
-					'snap_state' => $snapinState,
-					'snap_return' => $snapinReturn,
-					'snap_detail' => $snapinDetail,
-					'snap_create' => $snapinCreateDate,
-					'snap_time' => $snapinCreateTime,
-				);
-				$ReportMaker->addCSVCell($hostID);
-				$ReportMaker->addCSVCell($hostName);
-				$ReportMaker->addCSVCell($HostMac);
-				$ReportMaker->addCSVCell($snapinID);
-				$ReportMaker->addCSVCell($snapinName);
-				$ReportMaker->addCSVCell($snapinDesc);
-				$ReportMaker->addCSVCell($snapinFile);
-				$ReportMaker->addCSVCell($snapinArgs);
-				$ReportMaker->addCSVCell($snapinRw);
-				$ReportMaker->addCSVCell($snapinRwa);
-				$ReportMaker->addCSVCell($snapinState);
-				$ReportMaker->addCSVCell($snapinReturn);
-				$ReportMaker->addCSVCell($snapinDetail);
-				$ReportMaker->addCSVCell($snapinCreateDate);
-				$ReportMaker->addCSVCell($snapinCreateTime);
-				$ReportMaker->addCSVCell($jobCreateDate);
-				$ReportMaker->addCSVCell($jobCreateTime);
-				$ReportMaker->addCSVCell($TaskCheckinDate);
-				$ReportMaker->addCSVCell($TaskCheckinTime);
-				$ReportMaker->endCSVLine();
-			}
+			// Get the snapin
+			$Snapin = new Snapin($SnapinTask->get('snapinID'));
+			// Get the Job
+			$SnapinJob = new SnapinJob($SnapinTask->get('jobID'));
+			// Get the Host
+			$Host = new Host($SnapinJob->get('hostID'));
+			$hostID = $SnapinJob->get('hostID');
+			$hostName = $Host->isValid() ? $Host->get('name') : '';
+			$hostMac = $Host->isValid() ? $Host->get('mac') : '';
+			$snapinID = $SnapinTask->get('snapinID');
+			$snapinName = $Snapin->isValid() ? $Snapin->get('name') : '';
+			$snapinDesc = $Snapin->isValid() ? $Snapin->get('description') : '';
+			$snapinFile = $Snapin->isValid() ? $Snapin->get('file') : '';
+			$snapinArgs = $Snapin->isValid() ? $Snapin->get('args') : '';
+			$snapinRw = $Snapin->isValid() ? $Snapin->get('runWith') : '';
+			$snapinRwa = $Snapin->isValid() ? $Snapin->get('runWithArgs') : '';
+			$snapinState = $SnapinTask->get('stateID');
+			$snapinReturn = $SnapinTask->get('return');
+			$snapinDetail = $SnapinTask->get('detail');
+			$snapinCreateDate = $Snapin->isValid() ? $this->formatTime($Snapin->get('createdTime'),'Y-m-d') : '';
+			$snapinCreateTime = $Snapin->isValid() ? $this->formatTime($Snapin->get('createdTime'),'H:i:s') : '';
+			$jobCreateDate = $this->formatTime($SnapinJob->get('createdTime'),'Y-m-d');
+			$jobCreateTime = $this->formatTime($SnapinJob->get('createdTime'),'H:i:s');
+			$TaskCheckinDate = $SnapinCheckin1->format('Y-m-d');
+			$TaskCheckinTime = $SnapinCheckin2->format('H:i:s');
+			$this->data[] = array(
+				'snap_name' => $snapinName,
+				'snap_state' => $snapinState,
+				'snap_return' => $snapinReturn,
+				'snap_detail' => $snapinDetail,
+				'snap_create' => $snapinCreateDate,
+				'snap_time' => $snapinCreateTime,
+			);
+			$ReportMaker->addCSVCell($hostID);
+			$ReportMaker->addCSVCell($hostName);
+			$ReportMaker->addCSVCell($HostMac);
+			$ReportMaker->addCSVCell($snapinID);
+			$ReportMaker->addCSVCell($snapinName);
+			$ReportMaker->addCSVCell($snapinDesc);
+			$ReportMaker->addCSVCell($snapinFile);
+			$ReportMaker->addCSVCell($snapinArgs);
+			$ReportMaker->addCSVCell($snapinRw);
+			$ReportMaker->addCSVCell($snapinRwa);
+			$ReportMaker->addCSVCell($snapinState);
+			$ReportMaker->addCSVCell($snapinReturn);
+			$ReportMaker->addCSVCell($snapinDetail);
+			$ReportMaker->addCSVCell($snapinCreateDate);
+			$ReportMaker->addCSVCell($snapinCreateTime);
+			$ReportMaker->addCSVCell($jobCreateDate);
+			$ReportMaker->addCSVCell($jobCreateTime);
+			$ReportMaker->addCSVCell($TaskCheckinDate);
+			$ReportMaker->addCSVCell($TaskCheckinTime);
+			$ReportMaker->endCSVLine();
 		}
 		// This is for the pdf.
 		$ReportMaker->appendHTML($this->process());
-		$this->render();
+		$ReportMaker->outputReport(0);
 		$_SESSION['foglastreport'] = serialize($ReportMaker);
 	}
 	/** equip_loan()
@@ -1190,14 +1192,14 @@ class ReportManagementPage extends FOGPage
 	*/
 	public function equip_loan_post()
 	{
+		$Inventory = new Inventory($_REQUEST['user']);
 		// Set title
 		$this->title = _('FOG Equipment Loan Form');
 		// This gets the download links for which type of file you want.
-		print "\n\t\t\t\t<h2>".'<a href="export.php?type=pdf" alt="Export PDF" title="Export PDF" target="_blank"><img class="noBorder" src="images/pdf.png" /></a></h2>';
+		print "\n\t\t\t\t<h2>".'<a href="export.php?type=pdf&filename='.$Inventory->get('primaryuser').'EquipmentLoanForm" alt="Export PDF" title="Export PDF" target="_blank"><img class="noBorder" src="images/pdf.png" /></a></h2>';
 		// Report Maker
 		$ReportMaker = new ReportMaker();
 		// Get the current Inventory based on what was selected.
-		$Inventory = new Inventory($_REQUEST['user']);
 		// Title Information
 		$ReportMaker->appendHTML("<!-- "._("FOOTER CENTER")." \"" . '$PAGE' . " "._("of")." " . '$PAGES' . " - "._("Printed").": " . $this->nice_date()->format("D M j G:i:s T Y") . "\" -->" );
 		$ReportMaker->appendHTML("<center><h2>"._("[YOUR ORGANIZATION HERE]")."</h2></center>" );

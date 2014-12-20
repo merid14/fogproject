@@ -9,6 +9,8 @@ abstract class FOGPage extends FOGBase
 {
 	// Name
 	public $name = '';
+	public $debug = false;
+	public $info = false;
 	// Node Variable
 	public $node = '';
 	// ID Variable - name of ID variable used in Page
@@ -22,6 +24,8 @@ abstract class FOGPage extends FOGBase
 	// TODO: Finish
 	public $subMenu = array(
 	);
+    /** Sets the Variables to use later on. **/
+    public $FOGCore, $DB, $Hookmanager, $FOGUser, $FOGPageManager, $foglang;
 	// Variables
 	// Page title
 	public $titleEnabled = true;
@@ -110,8 +114,8 @@ abstract class FOGPage extends FOGBase
 				// HTML output
 				if ($this->searchFormURL)
 				{
-					$result[] = sprintf('%s<form method="post" action="%s" id="search-wrapper"><input id="%s-search" class="search-input placeholder" type="text" value="" placeholder="%s" autocomplete="off" '.(preg_match('#mobile#i',$_SERVER['PHP_SELF']) ? 'name="host-search"' : '').'/> <input id="%s-search-submit" class="search-submit" type="'.(preg_match('#mobile#i',$_SERVER['PHP_SELF']) ? 'submit' : 'button').'" value="'.(preg_match('#mobile#i',$_SERVER['PHP_SELF']) ? $this->foglang['Search'] : '').'" /></form>',
-						"\n\t\t\t",
+					$result[] = sprintf('%s<form method="post" action="%s" id="search-wrapper"><input id="%s-search" class="search-input placeholder" type="text" value="" placeholder="%s" autocomplete="off" '.(preg_match('#mobile#i',$_SERVER['PHP_SELF']) ? 'name="host-search"' : '').'/> <input id="%s-search-submit" class="search-submit" type="'.(preg_match('#mobile#i',$_SERVER['PHP_SELF']) ? 'submit' : 'button').'" value="'.(preg_match('#mobile#i',$_SERVER['PHP_SELF']) ? $this->foglang['Search'] : '').'" /></form>'."\n",
+						"\t\t\t\t",
 						$this->searchFormURL,
 						(substr($this->node, -1) == 's' ? substr($this->node, 0, -1) : $this->node),	// TODO: Store this in class as variable
 						sprintf('%s %s', ucwords((substr($this->node, -1) == 's' ? substr($this->node, 0, -1) : $this->node)), $this->foglang['Search']),
@@ -119,17 +123,15 @@ abstract class FOGPage extends FOGBase
 					);
 				}
 				// Table -> Header Row
-				$result[] = sprintf('%s<table width="%s" cellpadding="0" cellspacing="0" border="0"%s>%s<thead>%s<tr class="header">%s</tr>%s</thead>%s<tbody>%s',
-					"\n\n\t\t\t",
+				$result[] = sprintf('%s<table width="%s" cellpadding="0" cellspacing="0" border="0" id="%s">%s<thead>%s<tr class="header">%s</tr>%s</thead>%s<tbody>',
+					"\n\t\t\t\t\t",
 					'100%',
-					($this->searchFormURL ? ' id="search-content"' : ($this->node == 'tasks' && ($_REQUEST['sub'] == 'active' || !$_REQUEST['sub']) ? ' id="active-tasks"' : '')),
-					"\n\t\t\t\t",
-					"\n\t\t\t\t\t",
+					($this->searchFormURL ? 'search-content' : 'active-tasks'),
+					"\n\t\t\t\t\t\t",
+					"\n\t\t\t\t\t\t\t",
 					$this->buildHeaderRow(),
-					"\n\t\t\t\t",
-					"\n\t\t\t\t",
-					"\n\t\t\t\t\t",
-					"\n\t\t\t"
+					"\n\t\t\t\t\t\t",
+					"\n\t\t\t\t\t\t"
 				);
 				// Rows
 				if (count($this->data))
@@ -137,12 +139,12 @@ abstract class FOGPage extends FOGBase
 					// Data found
 					foreach ($this->data AS $rowData)
 					{
-						$result[] = sprintf('<tr id="%s-%s" class="%s">%s</tr>%s',
+						$result[] = sprintf('%s<tr id="%s-%s" class="%s">%s</tr>',
+							"\t\t\t\t\t\t\t",
 							(substr($this->node, -1) == 's' ? substr($this->node, 0, -1) : $this->node),
 							$rowData['id'],
 							(++$i % 2 ? 'alt1' : ((!$_REQUEST['sub'] && $this->FOGCore->getSetting('FOG_VIEW_DEFAULT_SCREEN') == 'list') || in_array($_REQUEST['sub'],array('list','search')) ? 'alt2' : '')),
-							$this->buildRow($rowData),
-							"\n\t\t\t\t\t"
+							$this->buildRow($rowData)
 						);
 					}
 					// Set message
@@ -158,7 +160,7 @@ abstract class FOGPage extends FOGBase
 					);
 				}
 				// Table close
-				$result[] = sprintf('%s</tbody>%s</table>%s', "\n\t\t\t\t", "\n\t\t\t", "\n\n\t\t\t");
+				$result[] = sprintf('%s</tbody>%s</table>%s', "\t\t\t\t\t\t", "\n\t\t\t\t\t", "\n\t\t\t");
 			}
 			// Return output
 			return implode("\n",$result);
@@ -187,7 +189,7 @@ abstract class FOGPage extends FOGBase
 				unset($attributes);
 			}
 			// Return result
-			return "\n\t\t\t\t\t\t" . implode("\n\t\t\t\t\t\t", $result) . "\n\t\t\t\t\t";
+			return "\n\t\t\t\t\t" . implode("\n\t\t\t\t\t", $result) . "\n\t\t\t\t";
 		}
 	}
 	public function buildRow($data)
@@ -226,7 +228,7 @@ abstract class FOGPage extends FOGBase
 			unset($attributes, $dataFind, $dataReplace);
 		}
 		// Return result
-		return "\n\t\t\t\t\t\t" . implode("\n\t\t\t\t\t\t", $result) . "\n\t\t\t\t\t";
+		return "\n\t\t\t\t\t\t\t\t" . implode("\n\t\t\t\t\t\t\t\t", $result) . "\n\t\t\t\t\t\t\t";
 	}
 
 	public function deploy()
@@ -640,7 +642,179 @@ abstract class FOGPage extends FOGBase
 		printf('</form>');
 		printf('</div>');
 	}
-
+	/** adInfo() Returns AD Information to host/group
+	 * @return void
+	**/
+	public function adInfo()
+	{
+		$Data = array(
+			'domainname' => $this->FOGCore->getSetting('FOG_AD_DEFAULT_DOMAINNAME'),
+			'ou' => $this->FOGCore->getSetting('FOG_AD_DEFAULT_OU'),
+			'domainuser' => $this->FOGCore->getSetting('FOG_AD_DEFAULT_USER'),
+			'domainpass' => $this->FOGCore->getSetting('FOG_AD_DEFAULT_PASSWORD'),
+		);
+		if ($this->FOGCore->isAJAXRequest())
+			print json_encode($Data);
+	}
+	/** getPing() Performs the ping stuff.
+	 * @return void
+	**/
+	public function getPing()
+	{
+		try
+		{
+			$ping = $_REQUEST['ping'];
+			if (!$_SESSION['AllowAJAXTasks'])
+				throw new Exception(_('FOG Session Invalid'));
+			if (!$ping || $ping == 'undefined')
+				throw new Exception(_('Undefined host to ping'));
+			if (!HostManager::isHostnameSafe($ping))
+				throw new Exception(_('Invalid Hostname'));
+			if (is_numeric($ping)) {
+				$Host = Host($ping);
+				$ping = $Host->get('name');
+			}
+			// Resolve Hostname
+			$ip = gethostbyname($ping);
+			if ($ip == $ping)
+				throw new Exception(_('Unable to resolve hostname'));
+			$result = $this->FOGCore->getClass('Ping',$ip)->execute();
+			if ($result !== true)
+				throw new Exception($result);
+			$SendMe = true;
+		}
+		catch (Exception $e)
+		{
+			$SendMe = $e->getMessage();
+		}
+		if ($this->FOGCore->isAJAXRequest())
+			print $SendMe;
+	}
+	public function kernelfetch()
+	{
+		try
+		{
+			if (!$_SESSION['AllowAJAXTasks'])
+				throw new Exception(_('FOG Session Invalid'));
+			if ($_SESSION['allow_ajax_kdl'] && $_SESSION['dest-kernel-file'] && $_SESSION['tmp-kernel-file'] && $_SESSION['dl-kernel-file'])
+			{
+				if ($_REQUEST['msg'] == 'dl')
+				{
+					$blUseProxy = false;
+					$proxyip = trim($this->FOGCore->getSetting('FOG_PROXY_IP'));
+					$proxyport = $this->FOGCore->getSetting('FOG_PROXY_PORT');
+					$proxyuser = $this->FOGCore->getSetting('FOG_PROXY_USERNAME');
+					$proxypass = $this->FOGCore->getSetting('FOG_PROXY_PASSWORD');
+					$proxy = ($proxyip ? $proxyip.':'.$proxyport : false);
+					$proxyauth = ($proxyuser ? $proxyuser.':'.$proxypass : false);
+					if ($proxy)
+						$blUseProxy = true;
+					if ($proxyauth)
+						$blUseProxyAuth = true;
+					$ch = curl_init();
+					curl_setopt($ch, CURLOPT_TIMEOUT, 700);
+					if ($blUseProxy)
+						curl_setopt($ch, CURLOPT_PROXY, $proxy);
+					if ($blUseProxyAuth)
+						curl_setopt($ch, CURLOPT_PROXYUSERPWD,$proxyauth);
+					curl_setopt($ch, CURLOPT_URL, $_SESSION['dl-kernel-file']);
+					curl_setopt($ch, CURLOPT_HEADER, false);
+					curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+					curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+					$fp = fopen($_SESSION['tmp-kernel-file'], 'wb');
+					if (!$fp)
+						throw new Exception(_('Error: Failed to open temp file'));
+					curl_setopt($ch, CURLOPT_FILE, $fp);
+					curl_exec($ch);
+					curl_close($ch);
+					fclose($fp);
+					if (!file_exists($_SESSION['tmp-kernel-file']))
+						throw new Exception(_('Error: Failed to download kernel'));
+					if (!filesize($_SESSION['tmp-kernel-file']) >  1048576)
+						throw new Exception(_('Error: Download Failed: filesize').' - '.filesize($_SESSION['tmp-kernel-file']));
+					$SendME = "##OK##";
+				}
+				else if ($_REQUEST['msg'] == 'tftp')
+				{
+					$destfile = $_SESSION['dest-kernel-file'];
+					$tmpfile = $_SESSION['tmp-kernel-file'];
+					unset($_SESSION['dest-kernel-file'],$_SESSION['tmp-kernel-file'],$_SESSION['dl-kernel-file']);
+					$this->FOGFTP->set('host',$this->FOGCore->resolveHostname($this->FOGCore->getSetting('FOG_TFTP_HOST')))
+								 ->set('username',trim($this->FOGCore->getSetting('FOG_TFTP_FTP_USERNAME')))
+								 ->set('password',trim($this->FOGCore->getSetting('FOG_TFTP_FTP_PASSWORD')));
+					if (!$this->FOGFTP->connect())
+						throw new Exception(_('Error: Unable to connect to tftp server'));
+					$orig = rtrim($this->FOGCore->getSetting('FOG_TFTP_PXE_KERNEL_DIR'),'/');
+					$backuppath = $orig.'/backup/';
+					$orig .= '/'.$destfile;
+					$backupfile = $backuppath.$destfile.$this->formatTime('','Ymd_His');
+					$this->FOGFTP->mkdir($backuppath);
+					$this->FOGFTP->rename($backupfile,$orig);
+					if (!$this->FOGFTP->put($orig,$tmpfile,FTP_BINARY))
+						throw new Exception(_('Error: Failed to install new kernel'));
+					@unlink($tmpfile);
+					$SendME = "##OK##";
+				}
+			}
+		}
+		catch (Exception $e)
+		{
+			print $e->getMessage();
+		}
+		$this->FOGFTP->close();
+		print $SendME;
+	}
+	public function loginInfo()
+	{
+		$fetchDataInfo = array(
+			'sites' => 'http://fogproject.org/globalusers/',
+			'version' => 'http://fogproject.org/version/version.php',
+		);
+		foreach((array)$fetchDataInfo AS $key => $url)
+		{
+			if ($fetchedData = $this->FOGCore->fetchURL($url))
+				$data[$key] = $fetchedData;
+			else
+				$data['error-'.$key] = _('Error contacting server');
+		}
+		print json_encode($data);
+	}
+	public function random()
+	{
+		try
+		{
+			if (!$_SESSION['AllowAJAXTasks'])
+				throw new Exception(_('FOG Session Invalid'));
+			$Data = array('key' => $this->FOGCore->randomString(32));
+		}
+		catch (Exception $e)
+		{
+			$Data = $e->getMessage();
+		}
+		if ($this->FOGCore->isAJAXRequest())
+			print json_encode($Data);
+	}
+	public function getmacman()
+	{
+		try
+		{
+			if (!$_SESSION['AllowAJAXTasks'])
+				throw new Exception(_('FOG Session Invalid'));
+			$prefix = $_REQUEST['prefix'];
+			if (!$prefix && strlen($prefix) >= 8)
+				throw new Exception(_('Unknown'));
+			if (!$this->FOGCore->getMACLookupCount() > 0)
+				throw new Exception('<a href="?node=about&sub=mac-list">'._('Load MAC Vendors').'</a>');
+			$MAC = new MACAddress($prefix);
+			if ($MAC && $MAC->isValid())
+				$Data = '<small>'.($mac == 'n/a' ? _('Unknown') : $this->FOGCore->getMACManufacturer($MAC->getMACPrefix())).'</small>';
+		}
+		catch (Exception $e)
+		{
+			$Data = $e->getMessage();
+		}
+		print $Data;
+	}
 	// Delete function, this should be more or less the same for all pages.
 	public function delete()
 	{
@@ -681,6 +855,44 @@ abstract class FOGPage extends FOGBase
 		printf('%s<form method="post" action="%s" class="c">',"\n\t\t\t",$this->formAction);
 		$this->render();
 		printf('</form>');
+	}
+
+	public function configure()
+	{
+		$Datatosend = "#!ok\n#sleep={$this->FOGCore->getSetting(FOG_SERVICE_CHECKIN_TIME)}\n#force={$this->FOGCore->getSetting(FOG_TASK_FORCE_REBOOT)}\n#maxsize={$this->FOGCore->getSetting(FOG_CLIENT_MAX_SIZE)}\n#promptTime={$this->FOGCore->getSetting(FOG_GRACE_TIMEOUT)}";
+		print $Datatosend;
+		exit;
+	}
+
+	public function authorize()
+	{
+		try
+		{
+			if ($_REQUEST['get_srv_key'])
+			{
+				$srv_key = file_get_contents(BASEPATH.'/management/other/ssl/srvpublic.key');
+				throw new Exception(base64_encode($srv_key));
+			}
+			$HostMan = new HostManager();
+			$MACs = HostManager::parseMacList($_REQUEST['mac']);
+			if (!$MACs)
+				throw new Exception('#!im');
+			$Host = $HostMan->getHostByMacAddresses($MACs);
+			if (!$Host || !$Host->isValid())
+				throw new Exception('#!ih');
+			if (!$pub_key = $this->certDecrypt($_REQUEST['sym_key']))
+				throw new Exception('#!ihc');
+			$Host->set('pub_key',$pub_key)->save();
+			if (!$Host->get('pub_key'))
+				throw new Exception('#!ihc');
+			print '#!en='.$this->certEncrypt('#!ok',$Host);
+		}
+		catch (Exception $e)
+		{
+				print  $e->getMessage();
+		}
+		exit;
+
 	}
 	public function delete_post()
 	{

@@ -2,6 +2,8 @@
 class Mainmenu extends FOGBase
 {
 	public $main;
+    /** Sets the Variables to use later on. **/
+    public $FOGCore, $DB, $Hookmanager, $FOGUser, $FOGPageManager, $foglang;
 	public function __construct()
 	{
 		parent::__construct();
@@ -10,23 +12,22 @@ class Mainmenu extends FOGBase
 	{
 		if(!preg_match('#mobile#i',$_SERVER['PHP_SELF']))
 		{
-			$menuItem[] = sprintf("%s%s","\n\t\t\t","<ul>");
+			$menuItem[] = '<ul>';
 			foreach($this->main AS $link => $title)
-				$menuItem[] = sprintf("%s%s","\n\t\t\t\t",'<li><a href="?node='.$link.'" title="'.$title.'"><img src="images/icon-'.$link.'.png" alt="'.$title.'" /></a></li>');
-			$menuItem[] = sprintf("%s%s","\n\t\t\t","</ul>");
+				$menuItem[] = sprintf("%s%s","\n\t\t\t\t\t\t",'<li><a href="?node='.$link.'" title="'.$title.'"><img src="images/icon-'.$link.'.png" alt="'.$title.'" /></a></li>');
+			$menuItem[] = sprintf("%s%s","\n\t\t\t\t\t","</ul>\n");
 		}
 		else
 		{
-			$menuItem[] = sprintf("%s%s","\n\t\t\t",'<div id="menuBar">');
+			$menuItem[] = sprintf("%s%s","\n\t\t\t\t",'<div id="menuBar">');
 			foreach($this->main AS $link => $title)
-				$menuItem[] = sprintf("%s%s","\n\t\t\t\t",'<a href="?node='.$link.($link != 'logout' ? 's' : '').'"><img class="'.$link.'" src="images/icon-'.$link.'.png" alt="'.$title.'" /></a>');
-			$menuItem[] = sprintf("%s%s","\n\t\t\t","</div>");
+				$menuItem[] = sprintf("%s%s","\n\t\t\t\t\t",'<a href="?node='.$link.($link != 'logout' ? 's' : '').'"><img class="'.$link.'" src="images/icon-'.$link.'.png" alt="'.$title.'" /></a>');
+			$menuItem[] = sprintf("%s%s","\n\t\t\t\t","</div>");
 		}
 		return implode($menuItem);
 	}
 	private function mainSetting()
 	{
-		$location = current($this->getClass('PluginManager')->find(array('name' => 'location', 'installed' => 1)));
 		$plugin = $this->FOGCore->getSetting('FOG_PLUGINSYS_ENABLED');
 		$this->main = array(
 			'home' => $this->foglang['Home'],
@@ -81,6 +82,6 @@ class Mainmenu extends FOGBase
 		{
 			$this->FOGCore->redirect('?node=logout');
 		}
-		print $this->manageData();
+		return $this->manageData();
 	}
 }

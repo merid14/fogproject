@@ -3,14 +3,16 @@
  * FOG Hook Manager
  *	Author:		$Author: Blackout
  *	Created:	8:57 AM 31/08/2011
- *	Revision:	$Revision: 2448 $
- *	Last Update:	$LastChangedDate: 2014-10-20 16:09:14 -0400 (Mon, 20 Oct 2014) $
+ *	Revision:	$Revision$
+ *	Last Update:	$LastChangedDate$
  ***/
 class HookManager extends FOGBase
 {
 	public $logLevel = 0;
 	private $data;
 	public $events;
+    /** Sets the Variables to use later on. **/
+    public $DB, $Hookmanager, $FOGUser, $FOGPageManager, $foglang;
 	public function register($event, $function)
 	{
 		try
@@ -23,6 +25,8 @@ class HookManager extends FOGBase
 				throw new Exception('Not a valid hook class');
 			$this->log(sprintf('Registering Hook: Event: %s, Function: %s', $event, $function[1]));
 			$this->data[$event][] = $function;
+			if (!$this->FOGUser)
+				$this->FOGUser = $GLOBALS['currentUser'];
 			return true;
 		}
 		catch (Exception $e)
@@ -90,7 +94,7 @@ class HookManager extends FOGBase
 	}
 	public function load()
 	{
-		global $Init,$FOGCore;
+		global $Init;
 		foreach($Init->HookPaths AS $hookDirectory)
 		{
 			if (file_exists($hookDirectory))
@@ -100,7 +104,7 @@ class HookManager extends FOGBase
 				{
 					$file = !$fileInfo->isDot() && $fileInfo->isFile() && substr($fileInfo->getFilename(),-9) == '.hook.php' ? file($fileInfo->getPathname()) : null;
 					$PluginName = preg_match('#plugins#i',$hookDirectory) ? basename(substr($hookDirectory,0,-6)) : null;
-					$Plugin = current($FOGCore->getClass('PluginManager')->find(array('name' => $PluginName,'installed' => 1)));
+					$Plugin = current((array)$this->getClass('PluginManager')->find(array('name' => $PluginName,'installed' => 1)));
 					if ($Plugin)
 						$className = (substr($fileInfo->getFilename(),-9) == '.hook.php' ? substr($fileInfo->getFilename(),0,-9) : null);
 					else if ($file && !preg_match('#plugins#',$fileInfo->getPathname()))

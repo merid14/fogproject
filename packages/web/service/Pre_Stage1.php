@@ -12,12 +12,12 @@ try
 	$Host = $HostManager->getHostByMacAddresses($MACs);
 	if (!$Host->isValid())
 		throw new Exception( _('Invalid Host') );
-	$Host->getImage()->set('size','0')->save();
-	// Task for Host
 	$Task = $Host->get('task');
 	if (!$Task->isValid())
 		throw new Exception( sprintf('%s: %s (%s)', _('No Active Task found for Host'), $Host->get('name'), $MACAddress) );
 	// Check-in Host
+	$Task->getImage()->set('size','0')->save();
+	// Task for Host
 	if ($Task->get('stateID') == 1)
 		$Task->set('stateID', '2')->set('checkInTime', $FOGCore->nice_date()->format('Y-m-d H:i:s'))->save();
 	$imagingTasks = in_array($Task->get('typeID'),array(1,2,8,15,16,17));
@@ -68,19 +68,19 @@ try
    	                	$winner = $StorageNode;
 			    }
 			    else
-				    $messageArray[] = sprintf("%s '%s' (%s) %s", _('Storage Node'), $StorageNode->get('name'), $StorageNode->get('ip'), _('is open, but has recently failed for this Host'));
+				    $messageArray[] = sprintf("%s '%s' (%s) %s", _('Storage Node'), $StorageNode->get('name'), $FOGCore->resolveHostname($StorageNode->get('ip')), _('is open, but has recently failed for this Host'));
 			}
 		}
 	}
 	// Failed to find a Storage Node - this should only occur if all Storage Nodes in this Storage Group have failed
-	if (!isset($winner) || !$winner->isValid())
+	if ($imagingTasks && (!isset($winner) || !$winner->isValid()))
 	{
 		// Print failed node messages if we are unable to find a valid node
 		if (count($messageArray))
 			print implode(PHP_EOL, $messageArray) . PHP_EOL;
 		throw new Exception(_("Unable to find a suitable Storage Node for transfer!"));
+		$Task->set('NFSMemberID', $winner->get('id'));
 	}
-	$Task->set('NFSMemberID', $winner->get('id'));
 	// All tests passed! Almost there!
 	$Task->set('stateID', '3');
 	// Update Task State ID -> Update Storage Node ID -> Save
@@ -99,7 +99,7 @@ try
 			$il = new ImagingLog(array(
 				'hostID' => $Host->get('id'),
 				'start' => $FOGCore->nice_date()->format('Y-m-d H:i:s'),
-				'image' => $Host->getImage()->get('name'),
+				'image' => $Task->getImage()->get('name'),
 				'type' => $_REQUEST['type'],
 			));
 		}

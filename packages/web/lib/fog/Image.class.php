@@ -19,18 +19,19 @@ class Image extends FOGController
 		'size' => 'imageSize',
 		'imageTypeID' => 'imageTypeID',
 		'imagePartitionTypeID' => 'imagePartitionTypeID',
-		'storageGroupID' => 'imageNFSGroupID',
 		'osID' => 'imageOSID',
 		'size' => 'imageSize', 
 		'deployed' => 'imageLastDeploy',
 		'format' => 'imageFormat',
 		'magnet' => 'imageMagnetUri',
 		'protected' => 'imageProtect',
+		'compress' => 'imageCompress',
 	);
 
 	// Additional Fields
 	public $additionalFields = array(
 		'hosts',
+		'storageGroups',
 	);
 
 	// Overrides
@@ -47,11 +48,26 @@ class Image extends FOGController
 		}
 		return $this;
 	}
+	private function loadGroups()
+	{
+		if (!$this->isLoaded('storageGroups'))
+		{
+			if ($this->get('id'))
+			{
+				$Groups = $this->getClass('ImageAssociationManager')->find(array('imageID' => $this->get('id')));
+				foreach($Groups AS $Group)
+					$this->add('storageGroups', $Group->getStorageGroup());
+			}
+		}
+		return $this;
+	}
 
 	public function get($key = '')
 	{
 		if ($this->key($key) == 'hosts')
 			$this->loadHosts();
+		else if ($this->key($key) == 'storageGroups')
+			$this->loadGroups();
 		return parent::get($key);
 	}
 
@@ -61,6 +77,12 @@ class Image extends FOGController
 		{
 			foreach((array)$value AS $Host)
 				$newValue[] = ($Host instanceof Host ? $Host : new Host($Host));
+			$value = (array)$newValue;
+		}
+		else if ($this->key($key) == 'storageGroups')
+		{
+			foreach((array)$value AS $Group)
+				$newValue[] = ($Group instanceof StorageGroup ? $Group : new Group($Group));
 			$value = (array)$newValue;
 		}
 		// Set
@@ -74,6 +96,11 @@ class Image extends FOGController
 			$this->loadHosts();
 			$value = new Host($value);
 		}
+		else if ($this->key($key) == 'storageGroups' && !($value instanceof StorageGroup))
+		{
+			$this->loadGroups();
+			$value = new StorageGroup($value);
+		}
 		// Add
 		return parent::add($key, $value);
 	}
@@ -82,6 +109,8 @@ class Image extends FOGController
 	{
 		if ($this->key($key) == 'hosts')
 			$this->loadHosts();
+		else if ($this->key($key) == 'storageGroups')
+			$this->loadGroups();
 		// Remove
 		return parent::remove($key, $object);
 	}
@@ -104,6 +133,23 @@ class Image extends FOGController
 					$Host->set('imageID', $this->get('id'))->save();
 			}
 		}
+		if ($this->isLoaded('storageGroups'))
+		{
+			// Remove old rows
+			$this->getClass('ImageAssociationManager')->destroy(array('imageID' => $this->get('id')));
+			// Create Assoc
+			foreach((array)$this->get('storageGroups') AS $Group)
+			{
+				if (($Group instanceof StorageGroup) && $Group->isValid())
+				{
+					$NewGroup = new ImageAssociation(array(
+						'imageID' => $this->get('id'),
+						'storageGroupID' => $Group->get('id'),
+					));
+					$NewGroup->save();
+				}
+			}
+		}
 		return $this;
 	}
 
@@ -112,6 +158,14 @@ class Image extends FOGController
 		// Add
 		foreach((array)$addArray AS $item)
 			$this->add('hosts', $item);
+		// Return
+		return $this;
+	}
+	public function addGroup($addArray)
+	{
+		// Add
+		foreach((array)$addArray AS $item)
+			$this->add('storageGroups',$item);
 		// Return
 		return $this;
 	}
@@ -124,6 +178,15 @@ class Image extends FOGController
 		// Return
 		return $this;
 	}
+
+	public function removeGroup($removeArray)
+	{
+		// Iterate array (or other as array)
+		foreach((array)$removeArray AS $remove)
+			$this->remove('storageGroups', ($remove instanceof StorageGroup ? $remove : new StorageGroup((int)$remove)));
+		// Return
+		return $this;
+	}
 	
 	// Custom functions
 	/** getStorageGroup()
@@ -131,9 +194,16 @@ class Image extends FOGController
 	*/
 	public function getStorageGroup()
 	{
-		$StorageGroup = new StorageGroup($this->get('storageGroupID'));
-		if (!$StorageGroup || !$StorageGroup->isValid())
-			throw new Exception(__class__.' '._('does not have a storage group assigned').'.');
+		$StorageGroup = current((array)$this->get('storageGroups'));
+		try
+		{
+			if (!$StorageGroup || !$StorageGroup->isValid())
+				throw new Exception(__class__.' '._('does not have a storage group assigned').'.');
+		}
+		catch (Exception $e)
+		{
+			$this->FOGCore->setMessage($e->getMessage());
+		}
 		return $StorageGroup;
 	}
 	/** getOS()
@@ -173,7 +243,7 @@ class Image extends FOGController
 		$SNME = ($SN && $SN->get('isEnabled') == '1' ? true : false);
 		if (!$SNME)
 			throw new Exception($this->foglang['NoMasterNode']);
-		$ftphost = $SN->get('ip');
+		$ftphost = $this->FOGCore->resolveHostname($SN->get('ip'));
 		$ftpuser = $SN->get('user');
 		$ftppass = $SN->get('pass');
 		$ftproot = rtrim($SN->get('path'),'/').'/'.$this->get('path');

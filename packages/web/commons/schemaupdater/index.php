@@ -911,6 +911,7 @@ $databaseSchema[] = array(
 		{
 			$allImageID[$host['hostImage']] = $host['hostOS'];
 		}
+		$DB->queryResult()->free();
 		// Iterate imageID's -> Update Image setting new osID -> Save
 		foreach ((array)$allImageID AS $imageID => $osID)
 		{
@@ -1666,6 +1667,113 @@ $databaseSchema[] = array(
 // 135
 $databaseSchema[] = array(
 	"ALTER TABLE `".DATABASE_NAME."`.`multicastSessions` ADD COLUMN `msSessClients` INT(11) NOT NULL AFTER msClients",
+);
+// 136
+$databaseSchema[] = array(
+	"ALTER TABLE `".DATABASE_NAME."`.`tasks` ADD COLUMN `taskImageID` INT(11) NOT NULL AFTER `taskHostID`",
+	"CREATE TABLE IF NOT EXISTS `" . DATABASE_NAME . "`.`imageGroupAssoc` (
+	  `igaID` mediumint(9) NOT NULL auto_increment,
+	  `igaImageID` mediumint(9) NOT NULL,
+	  `igaStorageGroupID` mediumint(9) NOT NULL,
+	  PRIMARY KEY  (`igaID`)
+	) ENGINE=MyISAM;",
+	"INSERT INTO `" . DATABASE_NAME ."`.`imageGroupAssoc` (`igaImageID`,`igaStorageGroupID`) SELECT `imageID`,`imageNFSGroupID` FROM `".DATABASE_NAME."`.`images` WHERE `imageNFSGroupID` IS NOT NULL",
+	"ALTER TABLE `" . DATABASE_NAME ."`.`images` DROP COLUMN `imageNFSGroupID`",
+	"ALTER IGNORE TABLE `" .DATABASE_NAME ."`.`imageGroupAssoc` ADD UNIQUE INDEX `igaImageID` (`igaImageID`)",
+);
+// 137
+$databaseSchema[] = array(
+	"ALTER TABLE `".DATABASE_NAME."`.`scheduledTasks` ADD COLUMN `stImageID` INT(11) NOT NULL AFTER `stGroupHostID`",
+);
+// 138
+$databaseSchema[] = array(
+	"ALTER TABLE `" . DATABASE_NAME ."`.`imageGroupAssoc` DROP INDEX `igaImageID`",
+);
+// 139
+$databaseSchema[] = array(
+	"INSERT INTO `" . DATABASE_NAME ."`.globalSettings(settingKey, settingDesc, settingValue, settingCategory)
+	 values('FOG_MEMORY_LIMIT','Default setting is the memory limit set in php.ini.','128','General Settings')",
+	"INSERT INTO `" . DATABASE_NAME ."`.globalSettings(settingKey, settingDesc, settingValue, settingCategory)
+	 values('FOG_EMAIL_ACTION','Enables email reports of image actions as they\'re completed.  Default setting is disabled.','0','FOG Email Settings')",
+	"INSERT INTO `" . DATABASE_NAME ."`.globalSettings(settingKey, settingDesc, settingValue, settingCategory)
+	 values('FOG_EMAIL_ADDRESS','Email address(s) to send the reports to. Multiple emails just separate by comma (e.g. email1@domain.com,email2@domain2.com)','','FOG Email Settings')",
+	"INSERT INTO `" . DATABASE_NAME ."`.globalSettings(settingKey, settingDesc, settingValue, settingCategory)
+	 values('FOG_EMAIL_BINARY','Path and arguments to the emailing binary php should use for the mail function. Default is \'/usr/sbin/sendmail -t -f noreply@\$\{server-name\}.com -i\'','/usr/sbin/sendmail -t -f noreply@\$\{server-name\}.com -i','FOG Email Settings')",
+	"INSERT INTO `" . DATABASE_NAME ."`.globalSettings(settingKey, settingDesc, settingValue, settingCategory)
+	 values('FOG_FROM_EMAIL','Email from address. Default is fogserver.  \$\{server-name\} is set to the node name.','noreply@\$\{server-name\}.com','FOG Email Settings')",
+);
+// 140
+$databaseSchema[] = array(
+	"CREATE TABLE IF NOT EXISTS `" . DATABASE_NAME . "`.`snapinGroupAssoc` (
+	  `sgaID` mediumint(9) NOT NULL auto_increment,
+	  `sgaSnapinID` mediumint(9) NOT NULL,
+	  `sgaStorageGroupID` mediumint(9) NOT NULL,
+	  PRIMARY KEY  (`sgaID`)
+	) ENGINE=MyISAM;",
+	"INSERT INTO `" . DATABASE_NAME ."`.`snapinGroupAssoc` (`sgaSnapinID`,`sgaStorageGroupID`) SELECT `sID`,`snapinNFSGroupID` FROM `".DATABASE_NAME."`.`snapins` WHERE `snapinNFSGroupID` IS NOT NULL",
+	"ALTER TABLE `" . DATABASE_NAME ."`.`snapins` DROP COLUMN `snapinNFSGroupID`",
+	"ALTER IGNORE TABLE `" .DATABASE_NAME ."`.`snapinGroupAssoc` ADD UNIQUE INDEX `sgaSnapinID` (`sgaSnapinID`)",
+	"ALTER TABLE `" . DATABASE_NAME ."`.`snapinGroupAssoc` DROP INDEX `sgaSnapinID`",
+);
+// 141
+$databaseSchema[] = array(
+	"INSERT INTO `" . DATABASE_NAME . "`.globalSettings(settingKey, settingDesc, settingValue, settingCategory)
+	values('FOG_PXE_HIDDENMENU_TIMEOUT', '"._("This setting defines the default value for the pxe hidden menu timeout.")."', '3', 'FOG Boot Settings')",
+);
+// 142
+$databaseSchema[] = array(
+	"INSERT INTO `" . DATABASE_NAME . "`.globalSettings(settingKey, settingDesc, settingValue, settingCategory)
+	values('FOG_USED_TASKS', '"._("This setting defines tasks to consider \'Used\' in the task count.  Listing is comma separated, using the ID\'s of the tasks.")."', '1,15,17', 'General Settings')",
+);
+// 143
+$databaseSchema[] = array(
+	"INSERT INTO `" . DATABASE_NAME . "`.globalSettings(settingKey, settingDesc, settingValue, settingCategory)
+	values('FOG_GRACE_TIMEOUT', '"._("This setting defines the grace period for the reboots and shutdowns.  The value is specified in seconds")."', '60', 'FOG Service')",
+);
+// 144
+$databaseSchema[] = array(
+	"ALTER TABLE `" . DATABASE_NAME ."`.`nfsGroupMembers` ADD COLUMN `ngmBandwidthLimit` INT(20) NOT NULL AFTER `ngmMaxClients`",
+);
+// 145
+$databaseSchema[] = array(
+	"UPDATE `" . DATABASE_NAME ."`.`pxeMenu` SET `pxeRegOnly`='2' WHERE pxeID='7'",
+);
+// 146
+$databaseSchema[] = array(
+	"UPDATE `" . DATABASE_NAME ."`.`pxeMenu` SET `pxeRegOnly`='2' WHERE pxeID='6'",
+);
+// 147
+$databaseSchema[] = array(
+	"ALTER TABLE `" . DATABASE_NAME ."`.`hosts` ADD COLUMN `hostPubKey` LONGTEXT",
+);
+// 148
+$databaseSchema[] = array(
+	"INSERT INTO `" . DATABASE_NAME . "`.globalSettings(settingKey, settingDesc, settingValue, settingCategory)
+	values('FOG_SNAPIN_LIMIT', '"._("This setting defines the maximum snapins allowed to be assigned to a host.  Value of 0 means unlimted.")."', '0', 'General Settings')",
+);
+// 149
+$databaseSchema[] = array(
+	"ALTER TABLE `" . DATABASE_NAME ."`.`images` ADD COLUMN `imageCompress` INT(11)",
+);
+// 150
+$databaseSchema[] = array(
+	"DELETE FROM `". DATABASE_NAME ."`.`globalSettings` WHERE `settingKey`='FOG_JPGRAPH_VERSION'",
+);
+// 151
+$databaseSchema[] = array(
+	"ALTER TABLE `".DATABASE_NAME."`.`torrent` ENGINE=MyISAM",
+	"ALTER TABLE `".DATABASE_NAME."`.`taskTypes` ENGINE=MyISAM",
+	"ALTER TABLE `".DATABASE_NAME."`.`taskStates` ENGINE=MyISAM",
+	"ALTER TABLE `".DATABASE_NAME."`.`peer_torrent` ENGINE=MyISAM",
+	"ALTER TABLE `".DATABASE_NAME."`.`taskLog` ENGINE=MyISAM",
+	"ALTER TABLE `".DATABASE_NAME."`.`peer` ENGINE=MyISAM",
+	"ALTER TABLE `".DATABASE_NAME."`.`os` ENGINE=MyISAM",
+	"ALTER TABLE `".DATABASE_NAME."`.`modules` ENGINE=MyISAM",
+);
+// 152
+$databaseSchema[] = array(
+	"ALTER TABLE `".DATABASE_NAME."`.`imageGroupAssoc` ADD UNIQUE(`igaImageID`,`igaStorageGroupID`)",
+	"ALTER TABLE `".DATABASE_NAME."`.`snapinGroupAssoc` ADD UNIQUE(`sgaSnapinID`,`sgaStorageGroupID`)",
 );
 print '<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">';
 print "\n".'<html xmlns="http://www.w3.org/1999/xhtml">';

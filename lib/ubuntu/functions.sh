@@ -82,6 +82,17 @@ define( \"WEBROOT\", \"${webdirdest}\" );
 	else
 		echo "OK";
 	fi
+
+	echo -n "  * Starting FOG Snapin Replicator Server...";
+	${initdpath}/${initdSRfullname} stop >/dev/null 2>&1;
+	${initdpath}/${initdSRfullname} start >/dev/null 2>&1;
+	if [ "$?" != "0" ]
+	then
+		echo "Failed!";
+		exit 1;
+	else
+		echo "OK";
+	fi
 }
 
 configureNFS()
@@ -379,7 +390,6 @@ configureHttpd()
 		fi
 		mkdir "$webdirdest";
 		cp -Rf $webdirsrc/* $webdirdest/
-		
 		echo "<?php
 /**
 * Class Name: Config
@@ -491,14 +501,22 @@ class Config
 		define('FOG_DONATE_MINING', \"${donate}\");
 	}
 }" > "${webdirdest}/lib/fog/Config.class.php";
-		
+		echo "OK";
+		echo -n "  * Changing permissions on apache log files...";
+		chmod +rx /var/log/apache2;
+		chmod +rx /var/log/apache2/{access,error}.log;
+		chown -R ${apacheuser}:${apacheuser} /var/www;
+		echo "OK";
+		echo -n "  * Downloading kernels and inits...";
+		wget -O "${webdirdest}/service/ipxe/bzImage" "http://downloads.sourceforge.net/project/freeghost/KernelList/bzImage" >/dev/null 2>&1
+		wget -O "${webdirdest}/service/ipxe/bzImage32" "http://downloads.sourceforge.net/project/freeghost/KernelList/bzImage32" >/dev/null 2>&1
+		wget -O "${webdirdest}/service/ipxe/init.xz" "http://downloads.sourceforge.net/project/freeghost/InitList/init.xz" >/dev/null 2>&1
+		wget -O "${webdirdest}/service/ipxe/init_32.xz" "http://downloads.sourceforge.net/project/freeghost/InitList/init_32.xz" >/dev/null 2>&1
 		chown -R ${apacheuser}:${apacheuser} "$webdirdest"
-		
 		if [ -d "$apachehtmlroot" ]; then
 		    # check if there is a html directory in the /var/www directory
     		# if so, then we need to create a link in there for the fog web files
     		[ ! -h ${apachehtmlroot}/fog ] && ln -s ${webdirdest} ${apachehtmlroot}/fog
-
 			echo "<?php header('Location: ./fog/index.php');?>" > "/var/www/html/index.php";
 		else 
 			echo "<?php header('Location: ./fog/index.php');?>" > "/var/www/index.php";
@@ -557,14 +575,17 @@ installPackages()
 	
 	for x in $packages
 	do
-		dpkg -l $x 2>&1 | grep '^ii' &>/dev/null;
-		if [ "$?" != "0" -a "$x" == "php5-json" ]; then
+		checkMe=`dpkg -l $x | grep '^ii'`;
+		if [ "$checkMe" == "" -a "$x" == "php5-json" ]; then
 			x="php5-common";
-			dpkg -l $x 2>&1 | grep '^ii' &>/dev/null;
+			checkMe=`dpkg -l $x | grep '^ii'`;
+			if [ "$checkMe" == "" ]; then
+				x="php5-json";
+				checkme=`dpkg -l $x | grep '^ii'`;
+			fi
 		fi
-		if [ "$?" != "0" ]; then
+		if [ "$checkMe" == "" ]; then
 			echo  "  * Installing package: $x";
-			apt-get -y -q install $x >/dev/null 2>&1;
 			if [ "$x" = "mysql-server" ]
 			then
 				strDummy="";
@@ -600,18 +621,22 @@ confirmPackageInstallation()
 	for x in $packages
 	do
 		echo -n "  * Checking package: $x...";
-		dpkg -l $x 2>&1 | grep '^ii' &>/dev/null;
-		if [ "$?" != "0" -a "$x" == "php5-json" ]
+		checkMe=`dpkg -l $x | grep '^ii'`;
+		if [ "$checkMe" == "" -a "$x" == "php5-json" ]
 		then
 			x="php5-common";
-			dpkg -l $x 2>&1 | grep '^ii' &>/dev/null;
+			checkMe=`dpkg -l $x | grep '^ii'`;
+			if [ "$checkMe" == "" ]; then
+				x="php5-json";
+				checkMe=`dpkg -l $x | grep '^ii'`;
+			fi
 		fi
-		if [ "$?" != "0" ]; then
+		if [ "$checkMe" == "" ]; then
 			echo "Failed!"
 			if [ "$x" = "$dhcpname" ]
 			then			
 				echo -n "  * Checking for legacy package: $olddhcpname";
-				dpkg -l $olddhcpname >/dev/null 2>&1;
+				dpkg -l $olddhcpname >/dev/null 2>&1 | grep '^ii' >/dev/null;
 				if [ "$?" != "0" ]
 				then
 					echo "Failed!"

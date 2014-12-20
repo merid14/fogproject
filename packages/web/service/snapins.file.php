@@ -7,7 +7,7 @@ try
 	if (!$MACs) throw new Exception('#!im');
 	// Get the Host
 	$Host = $HostManager->getHostByMacAddresses($MACs);
-	if(!$Host || !$Host->isValid())
+	if (!$Host || !$Host->isValid() || $Host->get('pending'))
 		throw new Exception('#!ih');
 	// Try and get the task.
 	$Task = $Host->get('task');
@@ -17,7 +17,8 @@ try
 	//Get the snapin to work off of.
 	$Snapin = new Snapin($SnapinTask->get('snapinID'));
 	// Find the Storage Group
-	$StorageGroup = $Snapin->getStorageGroup();
+	if ($Snapin && $Snapin->getStorageGroup() && $Snapin->isValid() && $Snapin->getStorageGroup()->isValid())
+		$StorageGroup = $Snapin->getStorageGroup();
 	// Allow plugins to enact against this. (e.g. location)
 	$HookManager->processEvent('SNAPIN_GROUP',array('Host' => &$Host,'StorageGroup' => &$StorageGroup));
 	// Assign the file for sending.
@@ -34,11 +35,13 @@ try
 		// Allow plugins to enact against this. (e.g. location)
 		$HookManager->processEvent('SNAPIN_NODE',array('Host' => &$Host,'StorageNode' => &$StorageNode));
 		if ($StorageNode && $StorageNode->isValid())
-			$SnapinFile = "ftp://".$StorageNode->get('user').":".$StorageNode->get('pass')."@".$StorageNode->get('ip').rtrim($StorageNode->get('snapinpath'),'/').'/'.$Snapin->get('file');
+			$SnapinFile = "ftp://".$StorageNode->get('user').":".$StorageNode->get('pass')."@".$FOGCore->resolveHostname($StorageNode->get('ip')).'/'.ltrim(rtrim($StorageNode->get('snapinpath'),'/'),'/').'/'.$Snapin->get('file');
 	}
 	// If it exists and is readable send it!
 	if (file_exists($SnapinFile) && is_readable($SnapinFile))
 	{
+		if (ob_get_level())
+			ob_end_clean();
 		header("Cache-Control: must-revalidate, post-check=0, pre-check=0");
 		header("Content-Description: File Transfer");
 		header("Content-Type: application/octet-stream");
@@ -49,14 +52,12 @@ try
 		if ($Task && $Task->isValid()) $Task->set('stateID',3)->save();
 		// Update the snapin task information.
 		$SnapinTask->set('stateID',1)->set('return',-1)->set('details','Pending...')->save();
+		print $file;
 		exit;
 	}
 }
 catch (Exception $e)
 {
-	$Datatosend = $e->getMessage();
+	print $e->getMessage();
+	exit;
 }
-if ($FOGCore->getSetting('FOG_NEW_CLIENT') && $FOGCore->getSetting('FOG_AES_ENCRYPT'))
-	print "#!en=".$FOGCore->aesencrypt($Datatosend,$FOGCore->getSetting('FOG_AES_PASS_ENCRYPT_KEY'));
-else
-	print $Datatosend;
